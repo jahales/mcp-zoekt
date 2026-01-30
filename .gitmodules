@@ -1,0 +1,3 @@
+[submodule "zoekt"]
+	path = zoekt
+	url = https://github.com/sourcegraph/zoekt.git

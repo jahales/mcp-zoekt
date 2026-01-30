@@ -1,0 +1,22 @@
+# Development files
+src/
+tests/
+vitest.config.ts
+tsconfig.json
+eslint.config.js
+
+# IDE
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore
+
+# Dependencies (will be installed by user)
+node_modules/
+
+# Misc
+*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,72 @@
+# Zoekt Infrastructure - Code Search Indexing
+# See README.md for setup instructions
+
+services:
+  # GitHub mirror - clones repos from GitHub
+  zoekt-mirror:
+    image: zoekt:local
+    container_name: zoekt-mirror
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        TOKEN=$$(cat /config/github-token.txt)
+        git config --global url."https://$$TOKEN@github.com/".insteadOf "https://github.com/"
+        zoekt-mirror-github -dest /data/repos -org Etude-Labs -token /config/github-token.txt -no_archived
+    volumes:
+      - zoekt-data:/data
+      - ./config:/config:ro
+    restart: "no"
+    networks:
+      - zoekt
+
+  # Indexer - indexes cloned repos
+  zoekt-indexserver:
+    image: zoekt:local
+    container_name: zoekt-indexserver
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Indexing cloned repositories..."
+        for repo in /data/repos/github.com/Etude-Labs/*.git; do
+          if [ -d "$$repo" ]; then
+            echo "Indexing $$repo..."
+            zoekt-git-index -index /data/index "$$repo" || echo "Failed to index $$repo"
+          fi
+        done
+        echo "Indexing complete. Starting watch loop..."
+        while true; do sleep 3600; done
+    volumes:
+      - zoekt-data:/data
+    restart: unless-stopped
+    depends_on:
+      zoekt-mirror:
+        condition: service_completed_successfully
+    networks:
+      - zoekt
+
+  zoekt-webserver:
+    image: zoekt:local
+    container_name: zoekt-webserver
+    command: zoekt-webserver -index /data/index -rpc
+    ports:
+      - "6070:6070"
+    volumes:
+      - zoekt-data:/data:ro
+    restart: unless-stopped
+    depends_on:
+      - zoekt-indexserver
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:6070/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - zoekt
+
+volumes:
+  zoekt-data:
+    driver: local
+
+networks:
+  zoekt:
+    driver: bridge

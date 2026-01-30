@@ -1,0 +1,9 @@
+[
+  {
+    "GithubOrg": "Etude-Labs",
+    "CredentialPath": "/config/github-token.txt",
+    "NoArchived": true,
+    "Forks": false,
+    "Comment": "Etude-Labs - index all non-archived, non-fork repos"
+  }
+]

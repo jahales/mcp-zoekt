@@ -1,0 +1,89 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'zoekt-mcp/**'
+      - 'docker/**'
+      - '.github/workflows/integration-tests.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'zoekt-mcp/**'
+      - 'docker/**'
+      - '.github/workflows/integration-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: zoekt-mcp/package-lock.json
+
+      - name: Install dependencies
+        working-directory: zoekt-mcp
+        run: npm ci
+
+      - name: Build TypeScript
+        working-directory: zoekt-mcp
+        run: npm run build
+
+      - name: Run unit tests
+        working-directory: zoekt-mcp
+        run: npm run test
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    continue-on-error: true  # Integration tests are optional until Docker image is pre-built
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: zoekt-mcp/package-lock.json
+
+      - name: Install dependencies
+        working-directory: zoekt-mcp
+        run: npm ci
+
+      - name: Build TypeScript
+        working-directory: zoekt-mcp
+        run: npm run build
+
+      - name: Build Zoekt Docker image
+        run: docker build -t zoekt:local -f docker/Dockerfile.zoekt .
+
+      - name: Start test infrastructure
+        working-directory: docker
+        run: |
+          docker compose -f docker-compose.test.yml up -d
+          echo "Waiting for Zoekt to be ready..."
+          timeout 120 bash -c 'until curl -s http://localhost:6070/api/list > /dev/null 2>&1; do sleep 2; done'
+          echo "Zoekt is ready!"
+
+      - name: Run integration tests
+        working-directory: zoekt-mcp
+        run: npm run test:integration
+        env:
+          ZOEKT_URL: http://localhost:6070
+
+      - name: Stop test infrastructure
+        if: always()
+        working-directory: docker
+        run: docker compose -f docker-compose.test.yml down

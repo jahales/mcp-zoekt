@@ -1,0 +1,29 @@
+# Docker secrets
+docker/config/github-token.txt
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary
+*.tmp
+*.swp

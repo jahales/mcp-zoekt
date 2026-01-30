@@ -1,0 +1,68 @@
+# Zoekt Test Infrastructure
+# Indexes the embedded test corpus for integration testing
+#
+# Usage: docker compose -f docker/docker-compose.test.yml up -d
+
+services:
+  # Indexer - indexes the test corpus
+  zoekt-test-indexer:
+    image: zoekt:local
+    container_name: zoekt-test-indexer
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Initializing test corpus..."
+        mkdir -p /data/repos/test-repo
+        
+        # Initialize as a git repo (required for zoekt-git-index)
+        cd /data/repos/test-repo
+        git init
+        git config user.email "test@test.com"
+        git config user.name "Test User"
+        
+        # Copy test files from mounted volume
+        cp -r /corpus/* .
+        git add -A
+        git commit -m "Initial commit"
+        
+        echo "Indexing test repository..."
+        zoekt-git-index -index /data/index /data/repos/test-repo
+        
+        echo "Indexing complete!"
+        # Exit successfully - webserver will start after this
+    volumes:
+      - zoekt-test-data:/data
+      - ../zoekt-mcp/tests/fixtures/test-repo:/corpus:ro
+    restart: "no"
+    networks:
+      - zoekt-test
+
+  # Webserver - serves the search API
+  zoekt-test-webserver:
+    image: zoekt:local
+    container_name: zoekt-test-webserver
+    command: zoekt-webserver -index /data/index -rpc
+    ports:
+      - "6070:6070"
+    volumes:
+      - zoekt-test-data:/data:ro
+    restart: unless-stopped
+    depends_on:
+      zoekt-test-indexer:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:6070/"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - zoekt-test
+
+volumes:
+  zoekt-test-data:
+    driver: local
+
+networks:
+  zoekt-test:
+    driver: bridge
