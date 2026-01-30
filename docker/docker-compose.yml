@@ -1,0 +1,47 @@
+# Zoekt Infrastructure - Code Search Indexing
+# See README.md for setup instructions
+
+services:
+  zoekt-indexserver:
+    image: sourcegraph/zoekt:latest
+    container_name: zoekt-indexserver
+    command: >
+      zoekt-indexserver
+      -mirror_config /config/mirror-config.json
+      -data_dir /data
+      -interval ${INDEX_INTERVAL:-1h}
+    environment:
+      - INDEX_INTERVAL=${INDEX_INTERVAL:-1h}
+    volumes:
+      - zoekt-data:/data
+      - ./config:/config:ro
+    restart: unless-stopped
+    networks:
+      - zoekt
+
+  zoekt-webserver:
+    image: sourcegraph/zoekt:latest
+    container_name: zoekt-webserver
+    command: zoekt-webserver -index /data/index -rpc
+    ports:
+      - "6070:6070"
+    volumes:
+      - zoekt-data:/data:ro
+    restart: unless-stopped
+    depends_on:
+      - zoekt-indexserver
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:6070/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - zoekt
+
+volumes:
+  zoekt-data:
+    driver: local
+
+networks:
+  zoekt:
+    driver: bridge
