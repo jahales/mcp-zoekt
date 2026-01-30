@@ -1,16 +1,9 @@
 [
   {
-    "GithubOrg": "your-org-name",
+    "GithubOrg": "Etude-Labs",
     "CredentialPath": "/config/github-token.txt",
     "NoArchived": true,
     "Forks": false,
-    "Comment": "Primary organization - index all non-archived, non-fork repos"
-  },
-  {
-    "GithubOrg": "your-second-org",
-    "CredentialPath": "/config/github-token.txt",
-    "NoArchived": true,
-    "Topics": ["production"],
-    "Comment": "Secondary organization - only repos tagged 'production'"
+    "Comment": "Etude-Labs - index all non-archived, non-fork repos"
   }
 ]

@@ -2,25 +2,50 @@
 # See README.md for setup instructions
 
 services:
-  zoekt-indexserver:
-    image: sourcegraph/zoekt:latest
-    container_name: zoekt-indexserver
-    command: >
-      zoekt-indexserver
-      -mirror_config /config/mirror-config.json
-      -data_dir /data
-      -interval ${INDEX_INTERVAL:-1h}
-    environment:
-      - INDEX_INTERVAL=${INDEX_INTERVAL:-1h}
+  # GitHub mirror - clones repos from GitHub
+  zoekt-mirror:
+    image: zoekt:local
+    container_name: zoekt-mirror
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        TOKEN=$$(cat /config/github-token.txt)
+        git config --global url."https://$$TOKEN@github.com/".insteadOf "https://github.com/"
+        zoekt-mirror-github -dest /data/repos -org Etude-Labs -token /config/github-token.txt -no_archived
     volumes:
       - zoekt-data:/data
       - ./config:/config:ro
+    restart: "no"
+    networks:
+      - zoekt
+
+  # Indexer - indexes cloned repos
+  zoekt-indexserver:
+    image: zoekt:local
+    container_name: zoekt-indexserver
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Indexing cloned repositories..."
+        for repo in /data/repos/github.com/Etude-Labs/*.git; do
+          if [ -d "$$repo" ]; then
+            echo "Indexing $$repo..."
+            zoekt-git-index -index /data/index "$$repo" || echo "Failed to index $$repo"
+          fi
+        done
+        echo "Indexing complete. Starting watch loop..."
+        while true; do sleep 3600; done
+    volumes:
+      - zoekt-data:/data
     restart: unless-stopped
+    depends_on:
+      zoekt-mirror:
+        condition: service_completed_successfully
     networks:
       - zoekt
 
   zoekt-webserver:
-    image: sourcegraph/zoekt:latest
+    image: zoekt:local
     container_name: zoekt-webserver
     command: zoekt-webserver -index /data/index -rpc
     ports:
