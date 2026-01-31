@@ -1,6 +1,7 @@
 # mcp-zoekt
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Integration Tests](https://github.com/jahales/mcp-zoekt/actions/workflows/integration-tests.yml/badge.svg)](https://github.com/jahales/mcp-zoekt/actions/workflows/integration-tests.yml)
 
 An MCP (Model Context Protocol) server that enables AI coding assistants to search code across indexed repositories using [Zoekt](https://github.com/sourcegraph/zoekt).
 
@@ -94,6 +95,6 @@ npm run build
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+Apache License 2.0 - see [LICENSE](LICENSE) for details.
 
-Zoekt is licensed under Apache 2.0 by Sourcegraph - see [zoekt/LICENSE](https://github.com/sourcegraph/zoekt/blob/main/LICENSE).
+This project uses [Zoekt](https://github.com/sourcegraph/zoekt) which is also licensed under Apache 2.0 by Sourcegraph.

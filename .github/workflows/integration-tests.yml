@@ -19,14 +19,11 @@ jobs:
   integration-tests:
     runs-on: ubuntu-latest
     
-    services:
-      docker:
-        image: docker:dind
-        options: --privileged
-    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -42,6 +39,10 @@ jobs:
       - name: Build TypeScript
         working-directory: zoekt-mcp
         run: npm run build
+
+      - name: Build Zoekt Docker image
+        working-directory: zoekt
+        run: docker build -t zoekt:local .
 
       - name: Start test infrastructure
         working-directory: docker
