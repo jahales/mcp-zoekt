@@ -22,14 +22,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Verify zoekt submodule
-        run: |
-          echo "Checking zoekt directory..."
-          ls -la zoekt/ || echo "zoekt directory not found!"
-          test -f zoekt/Dockerfile && echo "Dockerfile exists" || echo "Dockerfile missing!"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -46,9 +38,23 @@ jobs:
         working-directory: zoekt-mcp
         run: npm run build
 
-      - name: Build Zoekt Docker image
-        working-directory: zoekt
-        run: docker build -t zoekt:local .
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull or build Zoekt image
+        run: |
+          if docker pull ghcr.io/jahales/zoekt:latest; then
+            docker tag ghcr.io/jahales/zoekt:latest zoekt:local
+            echo "Using pre-built image from ghcr.io"
+          else
+            echo "Pre-built image not found, building from submodule..."
+            git submodule update --init --recursive
+            docker build -t zoekt:local ./zoekt
+          fi
 
       - name: Start test infrastructure
         working-directory: docker
