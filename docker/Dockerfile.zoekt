@@ -1,0 +1,22 @@
+# Simplified Zoekt Dockerfile for CI/testing
+# Skips ctags build for faster builds
+FROM golang:1.23-alpine AS builder
+
+RUN apk add --no-cache ca-certificates git
+
+ENV CGO_ENABLED=0
+WORKDIR /go/src/github.com/sourcegraph/zoekt
+
+# Clone zoekt source
+RUN git clone --depth 1 https://github.com/sourcegraph/zoekt.git .
+
+# Build zoekt binaries
+RUN go install ./cmd/zoekt-webserver ./cmd/zoekt-git-index ./cmd/zoekt-index ./cmd/zoekt
+
+FROM alpine:3.19
+
+RUN apk add --no-cache git ca-certificates tini
+
+COPY --from=builder /go/bin/* /usr/local/bin/
+
+ENTRYPOINT ["/sbin/tini", "--"]

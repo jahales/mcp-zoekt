@@ -47,13 +47,12 @@ jobs:
 
       - name: Pull or build Zoekt image
         run: |
-          if docker pull ghcr.io/jahales/zoekt:latest; then
+          if docker pull ghcr.io/jahales/zoekt:latest 2>/dev/null; then
             docker tag ghcr.io/jahales/zoekt:latest zoekt:local
             echo "Using pre-built image from ghcr.io"
           else
-            echo "Pre-built image not found, building from submodule..."
-            git submodule update --init --recursive
-            docker build -t zoekt:local ./zoekt
+            echo "Pre-built image not found, building from simplified Dockerfile..."
+            docker build -t zoekt:local -f docker/Dockerfile.zoekt .
           fi
 
       - name: Start test infrastructure
