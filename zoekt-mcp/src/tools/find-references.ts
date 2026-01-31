@@ -135,6 +135,7 @@ export function extractDefinitions(fileMatches: FileMatch[]): ReferenceResult[] 
 /**
  * Extract usages from content search results.
  * These are locations where the symbol is used (function calls, variable references, etc.)
+ * Handles both ChunkMatches (newer API) and LineMatches (legacy API) formats.
  */
 export function extractUsages(fileMatches: FileMatch[]): ReferenceResult[] {
   const usages: ReferenceResult[] = [];
@@ -143,23 +144,45 @@ export function extractUsages(fileMatches: FileMatch[]): ReferenceResult[] {
     const repository = fileMatch.Repository ?? fileMatch.Repo ?? 'Unknown';
     const fileName = fileMatch.FileName;
     
-    if (!fileMatch.ChunkMatches) {
-      continue;
+    // Handle ChunkMatches (newer format)
+    if (fileMatch.ChunkMatches) {
+      for (const chunk of fileMatch.ChunkMatches) {
+        const context = decodeBase64(chunk.Content);
+        const lineNumber = chunk.ContentStart.LineNumber;
+        const column = chunk.Ranges[0]?.Start?.Column ?? chunk.ContentStart.Column;
+        
+        usages.push({
+          type: 'usage',
+          file: fileName,
+          repository,
+          line: lineNumber,
+          column,
+          context: context.trim(),
+        });
+      }
     }
     
-    for (const chunk of fileMatch.ChunkMatches) {
-      const context = decodeBase64(chunk.Content);
-      const lineNumber = chunk.ContentStart.LineNumber;
-      const column = chunk.Ranges[0]?.Start?.Column ?? chunk.ContentStart.Column;
-      
-      usages.push({
-        type: 'usage',
-        file: fileName,
-        repository,
-        line: lineNumber,
-        column,
-        context: context.trim(),
-      });
+    // Handle LineMatches (legacy format from /api/search)
+    if (fileMatch.LineMatches) {
+      for (const lineMatch of fileMatch.LineMatches) {
+        // Skip filename matches
+        if (lineMatch.FileName) {
+          continue;
+        }
+        
+        const context = decodeBase64(lineMatch.Line);
+        const lineNumber = lineMatch.LineNumber;
+        const column = lineMatch.LineStart ?? 0;
+        
+        usages.push({
+          type: 'usage',
+          file: fileName,
+          repository,
+          line: lineNumber,
+          column,
+          context: context.trim(),
+        });
+      }
     }
   }
   

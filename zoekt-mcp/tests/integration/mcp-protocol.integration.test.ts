@@ -68,11 +68,12 @@ describe('MCP Protocol Integration', () => {
       expect(toolNames).toContain('file_content');
     });
 
-    it('should have exactly 3 tools', async () => {
+    it('should have exactly 7 tools', async () => {
       const response = await client.listTools();
       
       const result = response.result as { tools: Array<{ name: string }> };
-      expect(result.tools.length).toBe(3);
+      // Original 3 + 4 new tools: search_symbols, search_files, find_references, get_health
+      expect(result.tools.length).toBe(7);
     });
   });
 

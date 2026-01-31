@@ -65,6 +65,17 @@ export interface LineMatch {
   LineEnd: number;
   Before?: string;
   After?: string;
+  FileName?: boolean;  // True if this is a filename match, not content
+  Score?: number;
+  DebugScore?: string;
+  LineFragments?: LineFragment[];
+}
+
+export interface LineFragment {
+  LineOffset: number;
+  Offset: number;
+  MatchLength: number;
+  SymbolInfo?: SymbolInfo | null;
 }
 
 export interface SearchStats {
