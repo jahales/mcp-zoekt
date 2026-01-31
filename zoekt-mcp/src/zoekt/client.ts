@@ -34,22 +34,27 @@ export class ZoektClient {
 
   /**
    * Search for code across indexed repositories
+   * Uses POST /api/search endpoint with JSON payload
    */
   async search(
     query: string,
     options: { limit?: number; contextLines?: number }
   ): Promise<SearchResponse> {
-    const params = new URLSearchParams({
-      q: query,
-      format: 'json',
-      num: String(options.limit ?? 30),
-      ctx: String(options.contextLines ?? 3),
+    const url = `${this.baseUrl}/api/search`;
+    const body = JSON.stringify({
+      Q: query,
+      Opts: {
+        NumContextLines: options.contextLines ?? 3,
+        MaxDocDisplayCount: options.limit ?? 30,
+      },
     });
-
-    const url = `${this.baseUrl}/search?${params.toString()}`;
     
     try {
-      const response = await this.fetchWithTimeout(url);
+      const response = await this.fetchWithTimeout(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -60,7 +65,14 @@ export class ZoektClient {
         );
       }
 
-      return await response.json() as SearchResponse;
+      // The /api/search endpoint returns { Result: SearchResult }
+      // Normalize Files -> FileMatches for consistent downstream usage
+      const data = await response.json() as { Result: SearchResponse['result'] };
+      const result = data.Result;
+      if (result && result.Files && !result.FileMatches) {
+        result.FileMatches = result.Files;
+      }
+      return { result };
     } catch (error) {
       if (error instanceof ZoektError) {
         throw error;
@@ -80,20 +92,25 @@ export class ZoektClient {
 
   /**
    * List indexed repositories
+   * Uses POST /api/search endpoint with type:repo query
    */
   async listRepos(filter?: string): Promise<Repository[]> {
     // Use type:repo query to get list of repositories
     const query = filter ? `type:repo ${filter}` : 'type:repo';
-    const params = new URLSearchParams({
-      q: query,
-      format: 'json',
-      num: '1000', // Get enough results to capture all repos
+    const url = `${this.baseUrl}/api/search`;
+    const body = JSON.stringify({
+      Q: query,
+      Opts: {
+        MaxDocDisplayCount: 1000, // Get enough results to capture all repos
+      },
     });
-
-    const url = `${this.baseUrl}/search?${params.toString()}`;
     
     try {
-      const response = await this.fetchWithTimeout(url);
+      const response = await this.fetchWithTimeout(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -104,13 +121,13 @@ export class ZoektClient {
         );
       }
 
-      const data = await response.json() as SearchResponse;
-      const fileMatches = data.result?.FileMatches ?? [];
+      const data = await response.json() as { Result: SearchResponse['result'] };
+      const fileMatches = data.Result?.Files ?? data.Result?.FileMatches ?? [];
       
       // Extract unique repositories from file matches
       const repoMap = new Map<string, Set<string>>();
       for (const match of fileMatches) {
-        const repoName = match.Repo ?? match.Repository;
+        const repoName = match.Repository;
         if (repoName) {
           if (!repoMap.has(repoName)) {
             repoMap.set(repoName, new Set());
@@ -197,15 +214,25 @@ export class ZoektClient {
   /**
    * Fetch with timeout support
    */
-  private async fetchWithTimeout(url: string): Promise<Response> {
+  private async fetchWithTimeout(
+    url: string,
+    options?: { method?: string; headers?: Record<string, string>; body?: string }
+  ): Promise<Response> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
-      const response = await fetch(url, {
-        method: 'GET',
+      const fetchOptions: RequestInit = {
+        method: options?.method ?? 'GET',
         signal: controller.signal,
-      });
+      };
+      if (options?.headers) {
+        fetchOptions.headers = options.headers;
+      }
+      if (options?.body) {
+        fetchOptions.body = options.body;
+      }
+      const response = await fetch(url, fetchOptions);
       return response;
     } finally {
       clearTimeout(timeoutId);
@@ -239,18 +266,23 @@ export class ZoektClient {
 
   /**
    * Get index statistics via type:repo query
+   * Uses POST /api/search endpoint
    */
   async getStats(): Promise<IndexStats> {
-    const params = new URLSearchParams({
-      q: 'type:repo',
-      format: 'json',
-      num: '10000',
+    const url = `${this.baseUrl}/api/search`;
+    const body = JSON.stringify({
+      Q: 'type:repo',
+      Opts: {
+        MaxDocDisplayCount: 10000,
+      },
     });
-
-    const url = `${this.baseUrl}/search?${params.toString()}`;
     
     try {
-      const response = await this.fetchWithTimeout(url);
+      const response = await this.fetchWithTimeout(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
       
       if (!response.ok) {
         throw new ZoektError(
@@ -260,14 +292,14 @@ export class ZoektClient {
         );
       }
 
-      const data = await response.json() as SearchResponse;
-      const fileMatches = data.result?.FileMatches ?? [];
-      const stats = data.result?.Stats;
+      const data = await response.json() as { Result: SearchResponse['result'] };
+      const result = data.Result;
+      const fileMatches = result?.Files ?? result?.FileMatches ?? [];
       
       // Count unique repositories
       const repos = new Set<string>();
       for (const match of fileMatches) {
-        const repoName = match.Repo ?? match.Repository;
+        const repoName = match.Repository;
         if (repoName) {
           repos.add(repoName);
         }
@@ -275,9 +307,9 @@ export class ZoektClient {
 
       return {
         repositoryCount: repos.size,
-        documentCount: stats?.FileCount ?? 0,
-        indexBytes: stats?.IndexBytesLoaded ?? 0,
-        contentBytes: stats?.ContentBytesLoaded ?? 0,
+        documentCount: result?.FileCount ?? result?.Stats?.FileCount ?? 0,
+        indexBytes: result?.IndexBytesLoaded ?? result?.Stats?.IndexBytesLoaded ?? 0,
+        contentBytes: result?.ContentBytesLoaded ?? result?.Stats?.ContentBytesLoaded ?? 0,
       };
     } catch (error) {
       if (error instanceof ZoektError) {

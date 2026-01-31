@@ -22,12 +22,13 @@ const DEFAULT_LIMIT = 30;
  * wrapFilenameQuery('package.json') -> 'type:filename package.json'
  * wrapFilenameQuery('config repo:myrepo') -> 'type:filename config repo:myrepo'
  * wrapFilenameQuery('type:filename test') -> 'type:filename test' (unchanged)
+ * wrapFilenameQuery('config.yaml type:filename') -> 'config.yaml type:filename' (unchanged)
  */
 export function wrapFilenameQuery(query: string): string {
   const trimmedQuery = query.trim();
   
-  // Already has type:filename or type:file prefix - return as is
-  if (trimmedQuery.startsWith('type:filename') || trimmedQuery.startsWith('type:file')) {
+  // Already has type:filename or type:file anywhere - return as is
+  if (trimmedQuery.includes('type:filename') || trimmedQuery.includes('type:file ')) {
     return trimmedQuery;
   }
   

@@ -17,8 +17,15 @@ export interface SearchResponse {
 
 export interface SearchResult {
   FileMatches?: FileMatch[];
+  Files?: FileMatch[];  // Alternative field name from /api/search endpoint
   RepoURLs?: Record<string, string[]>;
   Stats?: SearchStats;
+  // Inline stats from /api/search endpoint
+  MatchCount?: number;
+  FileCount?: number;
+  Duration?: number;
+  ContentBytesLoaded?: number;
+  IndexBytesLoaded?: number;
 }
 
 export interface FileMatch {

@@ -15,40 +15,39 @@ describe('ZoektClient', () => {
   });
 
   describe('search', () => {
-    it('should call /search endpoint with query parameters', async () => {
-      const mockResponse: SearchResponse = {
-        result: {
-          FileMatches: [],
-          Stats: {
-            MatchCount: 0,
-            FileCount: 0,
-            Duration: 1000000,
-            ContentBytesLoaded: 0,
-            IndexBytesLoaded: 0,
-          },
+    it('should call /api/search endpoint with POST and JSON body', async () => {
+      // API response format from POST /api/search
+      const mockApiResponse = {
+        Result: {
+          Files: [],
+          MatchCount: 0,
+          FileCount: 0,
+          Duration: 1000000,
+          ContentBytesLoaded: 0,
+          IndexBytesLoaded: 0,
         },
       };
 
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(mockResponse),
+        json: () => Promise.resolve(mockApiResponse),
       } as Response);
 
       await client.search('test query', { limit: 30, contextLines: 3 });
 
       expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/search?'),
+        expect.stringContaining('/api/search'),
         expect.objectContaining({
-          method: 'GET',
-          signal: expect.any(AbortSignal),
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: expect.stringContaining('"Q":"test query"'),
         })
       );
 
-      const callUrl = vi.mocked(fetch).mock.calls[0]?.[0] as string;
-      expect(callUrl).toContain('q=test+query');
-      expect(callUrl).toContain('num=30');
-      expect(callUrl).toContain('ctx=3');
-      expect(callUrl).toContain('format=json');
+      const callBody = JSON.parse(vi.mocked(fetch).mock.calls[0]?.[1]?.body as string);
+      expect(callBody.Q).toBe('test query');
+      expect(callBody.Opts.MaxDocDisplayCount).toBe(30);
+      expect(callBody.Opts.NumContextLines).toBe(3);
     });
 
     it('should throw ZoektError when backend is unavailable', async () => {
@@ -84,41 +83,42 @@ describe('ZoektClient', () => {
   });
 
   describe('listRepos', () => {
-    it('should call /search endpoint with type:repo query', async () => {
-      const mockResponse: SearchResponse = {
-        result: {
-          FileMatches: [
-            { Repo: 'github.com/org/repo1', FileName: 'README.md', Branches: ['main'], Language: 'Markdown' },
-            { Repo: 'github.com/org/repo2', FileName: 'README.md', Branches: ['main', 'develop'], Language: 'Markdown' },
+    it('should call /api/search endpoint with type:repo query', async () => {
+      const mockApiResponse = {
+        Result: {
+          Files: [
+            { Repository: 'github.com/org/repo1', FileName: 'README.md', Branches: ['main'], Language: 'Markdown' },
+            { Repository: 'github.com/org/repo2', FileName: 'README.md', Branches: ['main', 'develop'], Language: 'Markdown' },
           ],
         },
       };
 
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(mockResponse),
+        json: () => Promise.resolve(mockApiResponse),
       } as Response);
 
       const repos = await client.listRepos();
 
       expect(fetch).toHaveBeenCalled();
       expect(repos).toBeDefined();
+      expect(repos.length).toBe(2);
     });
 
     it('should filter repos by pattern', async () => {
-      const mockResponse: SearchResponse = {
-        result: {
-          FileMatches: [
-            { Repo: 'github.com/org/repo1', FileName: 'README.md', Branches: ['main'], Language: 'Markdown' },
-            { Repo: 'github.com/org/repo2', FileName: 'README.md', Branches: ['main'], Language: 'Markdown' },
-            { Repo: 'github.com/other/repo3', FileName: 'README.md', Branches: ['main'], Language: 'Markdown' },
+      const mockApiResponse = {
+        Result: {
+          Files: [
+            { Repository: 'github.com/org/repo1', FileName: 'README.md', Branches: ['main'], Language: 'Markdown' },
+            { Repository: 'github.com/org/repo2', FileName: 'README.md', Branches: ['main'], Language: 'Markdown' },
+            { Repository: 'github.com/other/repo3', FileName: 'README.md', Branches: ['main'], Language: 'Markdown' },
           ],
         },
       };
 
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(mockResponse),
+        json: () => Promise.resolve(mockApiResponse),
       } as Response);
 
       const repos = await client.listRepos('org/repo');
