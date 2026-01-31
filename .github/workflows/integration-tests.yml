@@ -45,6 +45,7 @@ jobs:
   integration-tests:
     runs-on: ubuntu-latest
     needs: unit-tests
+    continue-on-error: true  # Integration tests are optional until Docker image is pre-built
     
     steps:
       - name: Checkout repository
