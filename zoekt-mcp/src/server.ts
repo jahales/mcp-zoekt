@@ -4,6 +4,10 @@ import { z } from 'zod';
 import type { McpServerConfig } from './config.js';
 import type { Logger } from './logger.js';
 import { ZoektClient, ZoektError } from './zoekt/client.js';
+import { createSearchSymbolsHandler } from './tools/search-symbols.js';
+import { createSearchFilesHandler } from './tools/search-files.js';
+import { createFindReferencesHandler } from './tools/find-references.js';
+import { createGetHealthHandler } from './tools/get-health.js';
 
 /**
  * Create and configure the MCP server with all tools
@@ -28,6 +32,18 @@ export function createMcpServer(
 
   // Register file_content tool
   registerFileContentTool(server, zoektClient, toolLogger);
+
+  // Register search_symbols tool
+  registerSearchSymbolsTool(server, zoektClient, toolLogger);
+
+  // Register search_files tool
+  registerSearchFilesTool(server, zoektClient, toolLogger);
+
+  // Register find_references tool
+  registerFindReferencesTool(server, zoektClient, toolLogger);
+
+  // Register get_health tool
+  registerGetHealthTool(server, zoektClient, toolLogger);
 
   return server;
 }
@@ -191,6 +207,141 @@ function registerFileContentTool(
           isError: true,
         };
       }
+    }
+  );
+}
+
+/**
+ * Register the search_symbols tool
+ */
+function registerSearchSymbolsTool(
+  server: McpServer,
+  client: ZoektClient,
+  logger: Logger
+): void {
+  const handler = createSearchSymbolsHandler(client, logger);
+
+  server.tool(
+    'search_symbols',
+    'Search for symbol names (functions, classes, methods, variables) across indexed repositories. Automatically uses Zoekt sym: query prefix.',
+    {
+      query: z.string().describe(
+        `Symbol search query. Examples:
+  - handleRequest - Find symbols named "handleRequest"
+  - /^get.*/ - Symbols starting with "get" (regex)
+  - handler lang:typescript - TypeScript symbols matching "handler"
+  - UserService repo:myorg/myrepo - Symbol in specific repo`
+      ),
+      limit: z.number().int().min(1).max(100).default(30).describe(
+        'Maximum number of symbols to return'
+      ),
+      contextLines: z.number().int().min(0).max(10).default(3).describe(
+        'Number of context lines to include around each match'
+      ),
+      cursor: z.string().optional().describe(
+        'Pagination cursor from previous response'
+      ),
+    },
+    async ({ query, limit, contextLines, cursor }) => {
+      return handler({ query, limit, contextLines, cursor });
+    }
+  );
+}
+
+/**
+ * Register the search_files tool
+ */
+function registerSearchFilesTool(
+  server: McpServer,
+  client: ZoektClient,
+  logger: Logger
+): void {
+  const handler = createSearchFilesHandler(client, logger);
+
+  server.tool(
+    'search_files',
+    'Search for files by filename pattern across indexed repositories. Returns file paths only, not content.',
+    {
+      query: z.string().describe(
+        `File name search query. Examples:
+  - package.json - Exact filename match
+  - /.*\\.test\\.ts$/ - TypeScript test files (regex)
+  - README.md repo:myorg/myrepo - README in specific repo
+  - config lang:yaml - YAML config files`
+      ),
+      limit: z.number().int().min(1).max(100).default(30).describe(
+        'Maximum number of files to return'
+      ),
+      cursor: z.string().optional().describe(
+        'Pagination cursor from previous response'
+      ),
+    },
+    async ({ query, limit, cursor }) => {
+      return handler({ query, limit, cursor });
+    }
+  );
+}
+
+/**
+ * Register the find_references tool
+ */
+function registerFindReferencesTool(
+  server: McpServer,
+  client: ZoektClient,
+  logger: Logger
+): void {
+  const handler = createFindReferencesHandler(client, logger);
+
+  server.tool(
+    'find_references',
+    'Find all definitions and usages of a symbol across indexed repositories. Returns both where the symbol is defined and where it is used.',
+    {
+      symbol: z.string().describe(
+        `Symbol to find references for. Examples:
+  - handleRequest - Find all references to "handleRequest"
+  - UserService - Find class definition and usages
+  - validateInput - Find function definition and call sites`
+      ),
+      filters: z.string().optional().describe(
+        `Additional query filters. Examples:
+  - lang:typescript - Limit to TypeScript files
+  - repo:myorg/myrepo - Limit to specific repository
+  - lang:go repo:backend - Multiple filters`
+      ),
+      limit: z.number().int().min(1).max(100).default(30).describe(
+        'Maximum number of references to return'
+      ),
+      contextLines: z.number().int().min(0).max(10).default(3).describe(
+        'Number of context lines to include around each match'
+      ),
+      cursor: z.string().optional().describe(
+        'Pagination cursor from previous response'
+      ),
+    },
+    async ({ symbol, filters, limit, contextLines, cursor }) => {
+      return handler({ symbol, filters, limit, contextLines, cursor });
+    }
+  );
+}
+
+/**
+ * Register the get_health tool
+ */
+function registerGetHealthTool(
+  server: McpServer,
+  client: ZoektClient,
+  logger: Logger
+): void {
+  const handler = createGetHealthHandler(client, logger);
+
+  server.tool(
+    'get_health',
+    'Check health status of the MCP server and Zoekt backend. Returns connectivity status, server version, and index statistics.',
+    {
+      // No parameters required
+    },
+    async () => {
+      return handler({});
     }
   );
 }

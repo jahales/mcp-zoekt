@@ -37,6 +37,7 @@ export interface ChunkMatch {
   ContentStart: ContentPosition;
   Ranges: MatchRange[];
   FileName: boolean;
+  SymbolInfo?: (SymbolInfo | null)[];  // Array aligned with Ranges
 }
 
 export interface ContentPosition {
@@ -103,3 +104,82 @@ export interface FileContentResponse {
   path: string;
   branch: string;
 }
+
+// Symbol types (from ctags integration)
+export type SymbolKind =
+  | 'function'
+  | 'class'
+  | 'method'
+  | 'variable'
+  | 'interface'
+  | 'type'
+  | 'constant'
+  | 'property'
+  | 'unknown';
+
+/** Symbol information from Zoekt's ctags integration */
+export interface SymbolInfo {
+  /** Symbol name (e.g., "handleRequest") */
+  Sym: string;
+  /** Symbol type (e.g., "function", "class") */
+  Kind: string;
+  /** Parent symbol name (e.g., "UserService") */
+  Parent: string;
+  /** Parent symbol type */
+  ParentKind: string;
+}
+
+/** Parsed symbol with normalized types */
+export interface Symbol {
+  name: string;
+  kind: SymbolKind;
+  parent?: string;
+  parentKind?: SymbolKind;
+  file: string;
+  repository: string;
+  line: number;
+  column: number;
+}
+
+/** Reference type for find_references */
+export type ReferenceType = 'definition' | 'usage';
+
+/** A location where a symbol is defined or used */
+export interface ReferenceResult {
+  type: ReferenceType;
+  file: string;
+  repository: string;
+  line: number;
+  column: number;
+  context: string;
+  symbol?: Symbol;
+}
+
+// Health check types
+export type HealthState = 'healthy' | 'degraded' | 'unhealthy';
+
+/** Index statistics from Zoekt */
+export interface IndexStats {
+  repositoryCount: number;
+  documentCount: number;
+  indexBytes: number;
+  contentBytes: number;
+}
+
+/** Health status response */
+export interface HealthStatus {
+  status: HealthState;
+  serverVersion: string;
+  zoektReachable: boolean;
+  zoektVersion?: string;
+  indexStats?: IndexStats;
+  errorMessage?: string;
+}
+
+/** Raw health response from Zoekt /healthz endpoint */
+export interface HealthResponse {
+  result?: {
+    Stats?: SearchStats;
+  };
+}
+

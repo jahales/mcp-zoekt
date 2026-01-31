@@ -5,8 +5,12 @@ An MCP (Model Context Protocol) server that enables AI coding assistants to sear
 ## Features
 
 - **`search`** - Search code across indexed repositories using Zoekt query syntax
+- **`search_symbols`** - Search for symbol names (functions, classes, methods, variables)
+- **`search_files`** - Search for files by filename pattern
+- **`find_references`** - Find all definitions and usages of a symbol
 - **`list_repos`** - List all indexed repositories with optional filtering
 - **`file_content`** - Retrieve full file contents from indexed repositories
+- **`get_health`** - Check health status of MCP server and Zoekt backend
 
 ## Installation
 
@@ -187,6 +191,90 @@ List all indexed repositories.
 # Filter by pattern
 {"filter": ".*-api$"}
 ```
+
+### `search_symbols`
+
+Search for symbol names (functions, classes, methods, variables) across repositories. Automatically uses Zoekt's `sym:` query prefix.
+
+**Input:**
+- `query` (required): Symbol search query
+- `limit` (optional): Maximum results (1-100, default: 30)
+- `contextLines` (optional): Context lines around matches (0-10, default: 3)
+- `cursor` (optional): Pagination cursor from previous response
+
+**Examples:**
+```
+# Find symbols named handleRequest
+{"query": "handleRequest"}
+
+# Symbols starting with "get" (regex)
+{"query": "/^get.*/"}
+
+# TypeScript symbols matching "handler"
+{"query": "handler lang:typescript"}
+
+# Symbol in specific repo
+{"query": "UserService repo:myorg/myrepo"}
+```
+
+### `search_files`
+
+Search for files by filename pattern. Returns file paths only, not content.
+
+**Input:**
+- `query` (required): File name search query
+- `limit` (optional): Maximum results (1-100, default: 30)
+- `cursor` (optional): Pagination cursor from previous response
+
+**Examples:**
+```
+# Exact filename match
+{"query": "package.json"}
+
+# TypeScript test files (regex)
+{"query": "/.*\\.test\\.ts$/"}
+
+# README in specific repo
+{"query": "README.md repo:myorg/myrepo"}
+
+# YAML config files
+{"query": "config lang:yaml"}
+```
+
+### `find_references`
+
+Find all definitions and usages of a symbol across repositories. Returns both where the symbol is defined and where it is used.
+
+**Input:**
+- `symbol` (required): Symbol to find references for
+- `filters` (optional): Additional query filters (lang:, repo:, etc.)
+- `limit` (optional): Maximum results (1-100, default: 30)
+- `contextLines` (optional): Context lines around matches (0-10, default: 3)
+- `cursor` (optional): Pagination cursor from previous response
+
+**Examples:**
+```
+# Find all references to handleRequest
+{"symbol": "handleRequest"}
+
+# TypeScript only
+{"symbol": "UserService", "filters": "lang:typescript"}
+
+# Within specific repo
+{"symbol": "validateInput", "filters": "repo:backend"}
+```
+
+### `get_health`
+
+Check health status of the MCP server and Zoekt backend. Returns connectivity status, server version, and index statistics.
+
+**Input:** None required
+
+**Output:**
+- Health status: healthy, degraded, or unhealthy
+- MCP server version
+- Zoekt backend connectivity
+- Index statistics (repository count, document count, index size)
 
 ### `file_content`
 

@@ -1,4 +1,4 @@
-import type { SearchResponse, Repository, SearchInput } from './types.js';
+import type { SearchResponse, Repository, HealthResponse, IndexStats } from './types.js';
 
 /**
  * Custom error class for Zoekt-related errors
@@ -209,6 +209,84 @@ export class ZoektClient {
       return response;
     } finally {
       clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * Check Zoekt backend health via /healthz endpoint
+   */
+  async checkHealth(): Promise<{ healthy: boolean; error?: string }> {
+    const url = `${this.baseUrl}/healthz`;
+    
+    try {
+      const response = await this.fetchWithTimeout(url);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        return { healthy: false, error: errorText || response.statusText };
+      }
+
+      // Parse response to confirm it's valid
+      await response.json() as HealthResponse;
+      return { healthy: true };
+    } catch (error) {
+      if (error instanceof Error) {
+        return { healthy: false, error: error.message };
+      }
+      return { healthy: false, error: 'Unknown error checking health' };
+    }
+  }
+
+  /**
+   * Get index statistics via type:repo query
+   */
+  async getStats(): Promise<IndexStats> {
+    const params = new URLSearchParams({
+      q: 'type:repo',
+      format: 'json',
+      num: '10000',
+    });
+
+    const url = `${this.baseUrl}/search?${params.toString()}`;
+    
+    try {
+      const response = await this.fetchWithTimeout(url);
+      
+      if (!response.ok) {
+        throw new ZoektError(
+          'Failed to get index stats',
+          'QUERY_ERROR',
+          response.status
+        );
+      }
+
+      const data = await response.json() as SearchResponse;
+      const fileMatches = data.result?.FileMatches ?? [];
+      const stats = data.result?.Stats;
+      
+      // Count unique repositories
+      const repos = new Set<string>();
+      for (const match of fileMatches) {
+        const repoName = match.Repo ?? match.Repository;
+        if (repoName) {
+          repos.add(repoName);
+        }
+      }
+
+      return {
+        repositoryCount: repos.size,
+        documentCount: stats?.FileCount ?? 0,
+        indexBytes: stats?.IndexBytesLoaded ?? 0,
+        contentBytes: stats?.ContentBytesLoaded ?? 0,
+      };
+    } catch (error) {
+      if (error instanceof ZoektError) {
+        throw error;
+      }
+      throw new ZoektError(
+        `Failed to get stats: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'UNAVAILABLE'
+      );
     }
   }
 }
