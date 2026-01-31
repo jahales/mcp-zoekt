@@ -104,8 +104,11 @@ describe('Search Tool Integration', () => {
       const result = await client.search('function', { limit: 10 });
       
       expect(result.result).toBeDefined();
-      expect(result.result.Stats).toBeDefined();
-      expect(typeof result.result.Stats!.Duration).toBe('number');
+      // New API returns stats inline (Duration, MatchCount, etc.) not in Stats sub-object
+      const hasStats = result.result.Stats !== undefined || result.result.Duration !== undefined;
+      expect(hasStats).toBe(true);
+      const duration = result.result.Stats?.Duration ?? result.result.Duration;
+      expect(typeof duration).toBe('number');
     });
   });
 });
