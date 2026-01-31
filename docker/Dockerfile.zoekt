@@ -5,10 +5,10 @@ FROM golang:1.23-alpine AS builder
 RUN apk add --no-cache ca-certificates git
 
 ENV CGO_ENABLED=0
-WORKDIR /go/src/github.com/sourcegraph/zoekt
+WORKDIR /go/src/github.com/google/zoekt
 
-# Clone zoekt source
-RUN git clone --depth 1 https://github.com/sourcegraph/zoekt.git .
+# Clone zoekt source from original Google repository
+RUN git clone --depth 1 https://github.com/google/zoekt.git .
 
 # Build zoekt binaries
 RUN go install ./cmd/zoekt-webserver ./cmd/zoekt-git-index ./cmd/zoekt-index ./cmd/zoekt
