@@ -70,8 +70,12 @@ Ask your AI assistant to search across your indexed repositories:
 | Tool | Description |
 |------|-------------|
 | `search` | Search code using Zoekt query syntax (regex, file filters, language filters) |
+| `search_symbols` | Find symbol definitions (functions, classes, methods) with optional kind filtering |
+| `search_files` | Search for files by filename pattern |
+| `find_references` | Find all definitions and usages of a symbol across repositories |
 | `list_repos` | List all indexed repositories with optional filtering |
 | `file_content` | Retrieve full file contents from indexed repositories |
+| `get_health` | Check health status of MCP server and Zoekt backend |
 
 ## Documentation
 

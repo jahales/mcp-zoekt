@@ -59,7 +59,7 @@ Initial indexing may take 10-60 minutes depending on the number and size of repo
 ### 6. Verify
 
 ```bash
-curl "http://localhost:6070/search?q=type:repo&format=json" | jq '.Result.RepoURLs | keys'
+curl -s -X POST -d '{"Q":"type:repo"}' http://localhost:6070/api/search | jq '.Result.Files[].Repository' | sort -u
 ```
 
 ## Configuration Reference
@@ -136,7 +136,7 @@ zoekt-indexserver:
 docker-compose logs zoekt-indexserver | tail -50
 
 # Count indexed repositories
-curl "http://localhost:6070/search?q=type:repo&format=json" | jq '.Result.RepoURLs | length'
+curl -s -X POST -d '{"Q":"type:repo"}' http://localhost:6070/api/search | jq '[.Result.Files[].Repository] | unique | length'
 ```
 
 ### Force Re-index
@@ -190,7 +190,7 @@ Your GitHub token may be expired or have insufficient permissions.
 1. Wait for initial indexing to complete (check logs)
 2. Verify repos are indexed:
    ```bash
-   curl "http://localhost:6070/search?q=type:repo&format=json"
+   curl -s -X POST -d '{"Q":"type:repo"}' http://localhost:6070/api/search | jq '.Result.Files[].Repository'
    ```
 
 ### Container keeps restarting
