@@ -3,7 +3,17 @@
 **Feature Branch**: `003-zoekt-mcp-tools`  
 **Created**: 2026-01-31  
 **Status**: Draft  
-**Input**: Add full support for Zoekt search tools to the MCP: search_symbols tool, search_files tool, find_references/find_definitions tools, pagination support, health/status resource, enhanced search parameters (case_sensitive, whole_word), and improved error messages.
+**Input**: Add full support for Zoekt search tools to the MCP: search_symbols tool, search_files tool, find_references tool, pagination support, health status tool, and improved error messages.
+
+## Clarifications
+
+### Session 2026-01-31
+
+- Q: Which additional Zoekt features should be in scope (branch, lang, repo filters, etc.)? → A: Document in tool descriptions; defer to query syntax rather than adding parameters
+- Q: Streaming vs batch results? → A: Batch only with cursor-based pagination
+- Q: Health check as resource or tool? → A: Tool (`get_health`)
+- Q: Pagination cursor lifetime strategy? → A: Stateless (encode query + offset; never expires)
+- Q: Single find_references or separate find_definitions? → A: Single tool returning both definitions and usages
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -53,9 +63,9 @@ As a developer using an AI coding assistant, I want to find all usages/reference
 
 **Acceptance Scenarios**:
 
-1. **Given** a function "validateInput" exists and is called in multiple files, **When** a user calls `find_references` with symbol "validateInput", **Then** the system returns all files and locations where the function is called or referenced.
+1. **Given** a function "validateInput" exists and is called in multiple files, **When** a user calls `find_references` with symbol "validateInput", **Then** the system returns the definition location (if found) AND all files/locations where the function is called or referenced, with clear labels distinguishing definitions from usages.
 
-2. **Given** a symbol query with a scope filter, **When** a user calls `find_references` with symbol "config" and repo filter "backend-service", **Then** only references within that repository are returned.
+2. **Given** a symbol query with a scope filter, **When** a user calls `find_references` with symbol "config" and query containing `repo:backend-service`, **Then** only references within that repository are returned.
 
 3. **Given** no references are found, **When** a user calls `find_references`, **Then** the system returns an empty result indicating no usages were found.
 
@@ -79,59 +89,25 @@ As a developer using an AI coding assistant, I want to paginate through large se
 
 ---
 
-### User Story 5 - Control Search Case Sensitivity (Priority: P2)
-
-As a developer using an AI coding assistant, I want to explicitly control case sensitivity in searches, so that I can find exact matches when precision matters or cast a wider net when exploring.
-
-**Why this priority**: Case sensitivity control enables precise searches (finding "Config" but not "config") and is a frequently requested search refinement option.
-
-**Independent Test**: Can be tested by searching for "Error" with `case_sensitive: true` and verifying that "error" matches are not returned, then repeating with `case_sensitive: false` and verifying both are returned.
-
-**Acceptance Scenarios**:
-
-1. **Given** a search with `case_sensitive: true`, **When** a user searches for "UserConfig", **Then** only exact case matches are returned (not "userconfig" or "USERCONFIG").
-
-2. **Given** a search with `case_sensitive: false`, **When** a user searches for "error", **Then** matches include "Error", "ERROR", and "error".
-
-3. **Given** no case sensitivity parameter is provided, **When** a user searches, **Then** the default Zoekt behavior applies (auto-detect based on query pattern).
-
----
-
-### User Story 6 - Match Whole Words Only (Priority: P3)
-
-As a developer using an AI coding assistant, I want to search for whole word matches only, so that I can find "log" without matching "logging", "catalog", or "dialog".
-
-**Why this priority**: Whole word matching reduces noise in search results and is particularly valuable when searching for short, common terms.
-
-**Independent Test**: Can be tested by searching for "log" with `whole_word: true` and verifying that "logging" matches are excluded.
-
-**Acceptance Scenarios**:
-
-1. **Given** a search with `whole_word: true`, **When** a user searches for "get", **Then** only matches where "get" appears as a complete word are returned (not "getUser" or "target").
-
-2. **Given** a search with `whole_word: false` (default), **When** a user searches for "get", **Then** partial matches like "getUser" and "getter" are included.
-
----
-
-### User Story 7 - Check Server Health Status (Priority: P3)
+### User Story 5 - Check Server Health Status (Priority: P3)
 
 As a platform operator or AI agent, I want to check the health and status of the Zoekt MCP server and its backend, so that I can diagnose connectivity issues and verify the system is operational.
 
 **Why this priority**: Health checks enable monitoring and debugging when things go wrong, though they don't directly impact the core search experience.
 
-**Independent Test**: Can be tested by accessing the health resource endpoint and verifying it returns status information including Zoekt backend connectivity.
+**Independent Test**: Can be tested by calling the `get_health` tool and verifying it returns status information including Zoekt backend connectivity.
 
 **Acceptance Scenarios**:
 
-1. **Given** the Zoekt backend is running normally, **When** an agent reads the health resource, **Then** the response shows "healthy" status with backend connectivity confirmed.
+1. **Given** the Zoekt backend is running normally, **When** an agent calls `get_health`, **Then** the response shows "healthy" status with backend connectivity confirmed.
 
-2. **Given** the Zoekt backend is unavailable, **When** an agent reads the health resource, **Then** the response shows "unhealthy" status with a clear error message about backend connectivity.
+2. **Given** the Zoekt backend is unavailable, **When** an agent calls `get_health`, **Then** the response shows "unhealthy" status with a clear error message about backend connectivity.
 
 3. **Given** the health check succeeds, **When** the response is returned, **Then** it includes useful metadata like server version, uptime, and indexed repository count.
 
 ---
 
-### User Story 8 - Get Helpful Error Messages (Priority: P2)
+### User Story 6 - Get Helpful Error Messages (Priority: P2)
 
 As a developer using an AI coding assistant, I want clear, actionable error messages when searches fail, so that I can understand what went wrong and how to fix my query.
 
@@ -154,11 +130,8 @@ As a developer using an AI coding assistant, I want clear, actionable error mess
 - What happens when symbol search is requested but ctags indexing is not enabled?
   → The system returns an empty result with a message indicating symbol indexing may not be configured.
 
-- What happens when pagination cursor expires or becomes invalid?
-  → The system returns an error indicating the cursor is invalid and suggests starting a new search.
-
-- What happens when whole_word is combined with regex patterns?
-  → The whole_word parameter is ignored for regex patterns (regex gives full control); a warning may be logged.
+- What happens when pagination cursor becomes stale due to index updates?
+  → Cursors are stateless (encode query + offset). Results may shift if the index changed, but pagination continues working. Users accept eventual consistency.
 
 - What happens when file search pattern has invalid regex syntax?
   → The system returns an error with the specific regex parsing issue and suggests alternatives.
@@ -171,45 +144,44 @@ As a developer using an AI coding assistant, I want clear, actionable error mess
 
 - **FR-001**: MCP server MUST expose a `search_symbols` tool that searches for symbol names (functions, classes, methods, variables) using Zoekt's `sym:` query syntax
 - **FR-002**: MCP server MUST expose a `search_files` tool that searches for files by name pattern using Zoekt's `type:filename` query mode
-- **FR-003**: MCP server MUST expose a `find_references` tool that finds all usages of a symbol across indexed repositories
+- **FR-003**: MCP server MUST expose a `find_references` tool that finds all usages of a symbol across indexed repositories, returning both definitions and usages with clear labels
 - **FR-004**: The `search_symbols` tool MUST return symbol kind (function, class, method, variable) when available from ctags data
 - **FR-005**: The `search_files` tool MUST support regex patterns for flexible file matching
-- **FR-006**: The `find_references` tool MUST combine symbol definition search with content search to find both declarations and usages
+- **FR-006**: The `find_references` tool MUST combine symbol definition search (`sym:`) with content search to find both declarations and usages in a single response
+- **FR-007**: MCP server MUST expose a `get_health` tool that reports server and backend status
 
 #### Pagination
 
-- **FR-007**: The `search` tool MUST accept an optional `cursor` parameter for pagination
-- **FR-008**: Search responses MUST include a `nextCursor` field when more results are available
-- **FR-009**: Cursor-based pagination MUST maintain consistent result ordering across pages
-- **FR-010**: Invalid or expired cursors MUST return a clear error message
+- **FR-008**: The `search`, `search_symbols`, `search_files`, and `find_references` tools MUST accept an optional `cursor` parameter for pagination
+- **FR-009**: Search responses MUST include a `nextCursor` field when more results are available
+- **FR-010**: Cursors MUST be stateless (encode query hash and offset) so they never expire
+- **FR-011**: Cursors MUST maintain consistent result ordering within a single index state; results may shift if index updates between pages (eventual consistency)
 
-#### Enhanced Search Parameters
+#### Query-First API Design
 
-- **FR-011**: The `search` tool MUST accept an optional `case_sensitive` boolean parameter (maps to Zoekt's `case:yes/no`)
-- **FR-012**: The `search` tool MUST accept an optional `whole_word` boolean parameter (wraps query terms in word boundary regex)
-- **FR-013**: New search tools (`search_symbols`, `search_files`, `find_references`) MUST also support `case_sensitive` and `whole_word` parameters
-- **FR-014**: When `whole_word: true`, the system MUST wrap search terms with `\b` word boundary markers in regex
+- **FR-012**: Tool descriptions MUST document Zoekt query syntax for filtering (e.g., `lang:`, `repo:`, `branch:`, `case:`, `file:`) rather than exposing redundant parameters
+- **FR-013**: Tool parameters MUST be limited to structural concerns: `query`, `limit`, `contextLines`, `cursor`
+- **FR-014**: Tool descriptions MUST include examples of common query patterns (case sensitivity, whole word via regex, language filtering)
 
 #### Health and Status
 
-- **FR-015**: MCP server MUST expose a `health` resource (or tool) that reports server and backend status
-- **FR-016**: Health checks MUST verify connectivity to the Zoekt webserver
-- **FR-017**: Health response MUST include: status (healthy/unhealthy), server version, Zoekt backend reachability, and indexed repository count
+- **FR-015**: The `get_health` tool MUST verify connectivity to the Zoekt webserver
+- **FR-016**: Health response MUST include: status (healthy/unhealthy), server version, Zoekt backend reachability, and indexed repository count
 
 #### Error Handling
 
-- **FR-018**: Error messages for query syntax errors MUST include the specific issue and hint for correction
-- **FR-019**: Error messages for unknown query fields MUST list valid field options
-- **FR-020**: Timeout errors MUST suggest query refinement strategies
-- **FR-021**: All error responses MUST include an error code for programmatic handling
+- **FR-017**: Error messages for query syntax errors MUST include the specific issue and hint for correction
+- **FR-018**: Error messages for unknown query fields MUST list valid field options
+- **FR-019**: Timeout errors MUST suggest query refinement strategies
+- **FR-020**: All error responses MUST include an error code for programmatic handling
 
 ### Key Entities
 
 - **Symbol**: A code symbol (function, class, method, variable) indexed by Zoekt via ctags; has name, kind, file location, and repository
 - **File Match**: A file matching a filename pattern; has path, repository, and branches
-- **Search Cursor**: An opaque token representing pagination state; includes query hash and offset information
+- **Search Cursor**: A stateless, opaque token representing pagination state; encodes query hash and offset for resumption
 - **Health Status**: Server operational state; includes connectivity status, version, and statistics
-- **Search Options**: Parameters modifying search behavior; includes case_sensitive, whole_word, limit, context_lines
+- **Reference Result**: A location where a symbol is defined or used; includes type (definition/usage), file path, line number, and context
 
 ## Success Criteria *(mandatory)*
 
@@ -218,11 +190,10 @@ As a developer using an AI coding assistant, I want clear, actionable error mess
 - **SC-001**: Users can search for symbols and receive results within 2 seconds for indexes up to 100 repositories
 - **SC-002**: Users can search for files by name and receive results within 1 second for indexes up to 100 repositories
 - **SC-003**: Users can paginate through 500+ search results by fetching successive pages
-- **SC-004**: Case-sensitive searches return only exact case matches (zero false positives from case mismatch)
-- **SC-005**: Whole-word searches exclude partial matches (e.g., searching "log" does not return "logging")
-- **SC-006**: Error messages for 90% of common query mistakes include actionable correction hints
-- **SC-007**: Health check endpoint responds within 500ms and accurately reflects backend status
-- **SC-008**: All new tools are discoverable by MCP clients and include complete parameter documentation
+- **SC-004**: Error messages for 90% of common query mistakes include actionable correction hints
+- **SC-005**: Health check tool responds within 500ms and accurately reflects backend status
+- **SC-006**: All new tools are discoverable by MCP clients and include complete parameter and query syntax documentation
+- **SC-007**: Tool descriptions include at least 3 example queries demonstrating filtering capabilities (lang, repo, case, etc.)
 
 ## Assumptions
 
@@ -230,4 +201,5 @@ As a developer using an AI coding assistant, I want clear, actionable error mess
 - Zoekt webserver API supports the query syntax features being wrapped (sym:, type:filename, case:, etc.)
 - MCP clients can handle pagination cursor tokens in tool responses
 - The existing search, list_repos, and file_content tools continue to work alongside new tools
-- Zoekt's offset-based result limiting can be used to implement cursor-based pagination
+- Zoekt's offset-based result limiting can be used to implement stateless cursor-based pagination
+- AI agents using this MCP can learn and apply Zoekt query syntax from tool descriptions (query-first design)
