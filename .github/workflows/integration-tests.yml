@@ -23,7 +23,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: true
+          submodules: recursive
+
+      - name: Verify zoekt submodule
+        run: |
+          echo "Checking zoekt directory..."
+          ls -la zoekt/ || echo "zoekt directory not found!"
+          test -f zoekt/Dockerfile && echo "Dockerfile exists" || echo "Dockerfile missing!"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
