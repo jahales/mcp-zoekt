@@ -1,0 +1,58 @@
+{
+  "name": "mcp-zoekt",
+  "version": "1.0.0",
+  "description": "MCP server for Zoekt code search - enables AI assistants to search across indexed repositories",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "mcp-zoekt": "dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jahales/mcp-zoekt.git"
+  },
+  "homepage": "https://github.com/jahales/mcp-zoekt#readme",
+  "bugs": {
+    "url": "https://github.com/jahales/mcp-zoekt/issues"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run --project unit",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:all": "vitest run",
+    "test:watch": "vitest --project unit",
+    "lint": "eslint src/**/*.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "zoekt",
+    "code-search",
+    "ai",
+    "copilot",
+    "claude"
+  ],
+  "author": "Jacob Hales",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "pino": "^9.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "eslint": "^9.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}
