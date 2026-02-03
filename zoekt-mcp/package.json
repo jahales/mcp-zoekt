@@ -2,23 +2,31 @@
   "name": "mcp-zoekt",
   "version": "1.0.0",
   "description": "MCP server for Zoekt code search - enables AI assistants to search across indexed repositories",
-  "type": "module",
-  "main": "dist/index.js",
-  "bin": {
-    "mcp-zoekt": "dist/index.js"
+  "license": "Apache-2.0",
+  "mcpName": "io.github.jahales/mcp-zoekt",
+  "author": "Jacob Hales",
+  "homepage": "https://github.com/jahales/mcp-zoekt#readme",
+  "bugs": {
+    "url": "https://github.com/jahales/mcp-zoekt/issues"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jahales/mcp-zoekt.git"
   },
-  "homepage": "https://github.com/jahales/mcp-zoekt#readme",
-  "bugs": {
-    "url": "https://github.com/jahales/mcp-zoekt/issues"
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "mcp-zoekt": "dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && shx chmod +x dist/*.js",
+    "prepare": "npm run build",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
+    "watch": "tsc --watch",
     "test": "vitest run tests/unit",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
@@ -36,13 +44,11 @@
     "copilot",
     "claude"
   ],
-  "author": "Jacob Hales",
-  "license": "Apache-2.0",
   "engines": {
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "pino": "^9.0.0",
     "zod": "^3.23.0"
   },
@@ -52,6 +58,7 @@
     "@typescript-eslint/parser": "^8.0.0",
     "eslint": "^9.0.0",
     "globals": "^17.2.0",
+    "shx": "^0.3.4",
     "tsx": "^4.0.0",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"

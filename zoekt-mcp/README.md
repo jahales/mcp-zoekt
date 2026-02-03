@@ -1,5 +1,8 @@
 # mcp-zoekt
 
+[![npm version](https://img.shields.io/npm/v/mcp-zoekt.svg)](https://www.npmjs.com/package/mcp-zoekt)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
 An MCP (Model Context Protocol) server that enables AI coding assistants to search code across indexed repositories using [Zoekt](https://github.com/sourcegraph/zoekt).
 
 ## Features
@@ -12,12 +15,28 @@ An MCP (Model Context Protocol) server that enables AI coding assistants to sear
 - **`file_content`** - Retrieve full file contents from indexed repositories
 - **`get_health`** - Check health status of MCP server and Zoekt backend
 
+## Quick Install
+
+### VS Code with GitHub Copilot
+
+[![Install with NPX in VS Code](https://img.shields.io/badge/VS_Code-NPM-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=zoekt&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22mcp-zoekt%22%2C%22--url%22%2C%22http%3A%2F%2Flocalhost%3A6070%22%5D%7D) [![Install with NPX in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-NPM-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=zoekt&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22mcp-zoekt%22%2C%22--url%22%2C%22http%3A%2F%2Flocalhost%3A6070%22%5D%7D&quality=insiders)
+
+[![Install with Docker in VS Code](https://img.shields.io/badge/VS_Code-Docker-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=zoekt&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22--network%22%2C%22host%22%2C%22-e%22%2C%22ZOEKT_URL%3Dhttp%3A%2F%2Flocalhost%3A6070%22%2C%22ghcr.io%2Fjahales%2Fmcp-zoekt%22%5D%7D) [![Install with Docker in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Docker-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=zoekt&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22--network%22%2C%22host%22%2C%22-e%22%2C%22ZOEKT_URL%3Dhttp%3A%2F%2Flocalhost%3A6070%22%2C%22ghcr.io%2Fjahales%2Fmcp-zoekt%22%5D%7D&quality=insiders)
+
 ## Installation
 
 ### Using npx (recommended)
 
 ```bash
 npx mcp-zoekt --url http://localhost:6070
+```
+
+### Using Docker
+
+```bash
+docker run -i --rm --network host \
+  -e ZOEKT_URL=http://localhost:6070 \
+  ghcr.io/jahales/mcp-zoekt
 ```
 
 ### From source
@@ -87,14 +106,33 @@ npx mcp-zoekt --url http://localhost:6070 --timeout 60000
 
 ### VS Code with GitHub Copilot
 
-Add to `.vscode/settings.json`:
+#### Using npx
+
+Add to `.vscode/mcp.json` in your workspace:
 
 ```json
 {
-  "github.copilot.chat.experimental.mcpServers": {
+  "servers": {
     "zoekt": {
       "command": "npx",
-      "args": ["mcp-zoekt", "--url", "http://localhost:6070"]
+      "args": ["-y", "mcp-zoekt", "--url", "http://localhost:6070"]
+    }
+  }
+}
+```
+
+#### Using Docker
+
+```json
+{
+  "servers": {
+    "zoekt": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm", "--network", "host",
+        "-e", "ZOEKT_URL=http://localhost:6070",
+        "ghcr.io/jahales/mcp-zoekt"
+      ]
     }
   }
 }
@@ -104,12 +142,31 @@ Add to `.vscode/settings.json`:
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
+#### Using npx
+
 ```json
 {
   "mcpServers": {
     "zoekt": {
       "command": "npx",
-      "args": ["mcp-zoekt", "--url", "http://localhost:6070"]
+      "args": ["-y", "mcp-zoekt", "--url", "http://localhost:6070"]
+    }
+  }
+}
+```
+
+#### Using Docker
+
+```json
+{
+  "mcpServers": {
+    "zoekt": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm", "--network", "host",
+        "-e", "ZOEKT_URL=http://localhost:6070",
+        "ghcr.io/jahales/mcp-zoekt"
+      ]
     }
   }
 }
@@ -127,7 +184,7 @@ Add to your Continue configuration:
         "transport": {
           "type": "stdio",
           "command": "npx",
-          "args": ["mcp-zoekt", "--url", "http://localhost:6070"]
+          "args": ["-y", "mcp-zoekt", "--url", "http://localhost:6070"]
         }
       }
     ]
