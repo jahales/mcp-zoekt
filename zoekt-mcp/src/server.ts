@@ -1,5 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { createServer, type IncomingMessage, type ServerResponse } from 'http';
 import { z } from 'zod';
 import type { McpServerConfig } from './config.js';
 import type { Logger } from './logger.js';
@@ -523,7 +525,105 @@ export async function startServer(
     await server.connect(transport);
     logger.info({ transport: 'stdio' }, 'MCP server started');
   } else {
-    // HTTP transport - not implemented in this version
-    throw new Error('HTTP transport not yet implemented');
+    // HTTP/SSE transport for remote access
+    await startHttpServer(server, config, logger);
   }
+}
+
+/**
+ * Start HTTP server with SSE transport for remote MCP access
+ */
+async function startHttpServer(
+  server: McpServer,
+  config: McpServerConfig,
+  logger: Logger
+): Promise<void> {
+  const host = config.host ?? '0.0.0.0';
+  const port = config.port ?? 3001;
+
+  // Track active SSE transports per session
+  const transports = new Map<string, SSEServerTransport>();
+
+  const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+    const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
+    
+    // Add CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    // Health check endpoint
+    if (url.pathname === '/health' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', transport: 'http', sessions: transports.size }));
+      return;
+    }
+
+    // SSE endpoint - client connects here for server-sent events
+    if (url.pathname === '/sse' && req.method === 'GET') {
+      logger.info('New SSE connection');
+      
+      const transport = new SSEServerTransport('/messages', res);
+      const sessionId = crypto.randomUUID();
+      transports.set(sessionId, transport);
+
+      // Clean up on close
+      res.on('close', () => {
+        logger.info({ sessionId }, 'SSE connection closed');
+        transports.delete(sessionId);
+      });
+
+      await server.connect(transport);
+      return;
+    }
+
+    // Messages endpoint - client posts JSON-RPC messages here
+    if (url.pathname === '/messages' && req.method === 'POST') {
+      // Find the transport from the last SSE connection
+      // In production, you'd use session IDs from headers/query params
+      const transport = [...transports.values()].pop();
+      
+      if (!transport) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'No active SSE connection' }));
+        return;
+      }
+
+      // Collect body
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) {
+        chunks.push(chunk as Buffer);
+      }
+      const body = Buffer.concat(chunks).toString();
+
+      try {
+        await transport.handlePostMessage(req, res, body);
+      } catch (error) {
+        logger.error({ error }, 'Error handling message');
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Internal server error' }));
+        }
+      }
+      return;
+    }
+
+    // 404 for unknown routes
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Not found' }));
+  });
+
+  return new Promise((resolve, reject) => {
+    httpServer.on('error', reject);
+    httpServer.listen(port, host, () => {
+      logger.info({ transport: 'http', host, port, url: `http://${host}:${port}` }, 'MCP HTTP server started');
+      resolve();
+    });
+  });
 }

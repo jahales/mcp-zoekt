@@ -146,7 +146,7 @@ export function createSearchFilesHandler(
     // Validate cursor if provided
     let offset = 0;
     if (cursor) {
-      const validation = validateCursor(cursor, wrappedQuery, limit);
+      const validation = validateCursor(cursor, wrappedQuery);
       if (!validation.valid) {
         return {
           content: [{ type: 'text' as const, text: `**Error**: ${validation.error}` }],

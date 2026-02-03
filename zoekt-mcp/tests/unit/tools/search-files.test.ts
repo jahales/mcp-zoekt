@@ -236,5 +236,29 @@ describe('search_files tool', () => {
       // Should include cursor for next page
       expect((result.content[0] as { text: string }).text).toContain('cursor');
     });
+
+    // T024: limit correctly applies to search_files
+    it('returns exactly limit number of files when more are available', async () => {
+      // Return 20 files
+      mockClient.search.mockResolvedValue({
+        result: {
+          FileMatches: Array(20).fill(null).map((_, i) => ({
+            Repository: 'github.com/org/repo',
+            FileName: `src/file${i}.ts`,
+            Branches: ['main'],
+            Language: 'TypeScript',
+          })),
+          Stats: { MatchCount: 20, FileCount: 20, Duration: 5000000 },
+        },
+      });
+
+      const handler = createSearchFilesHandler(mockClient as unknown as ZoektClient, mockLogger);
+      const result = await handler({ query: '*.ts', limit: 10 });
+
+      // Count file entries in the output (format: - 📄 `filename`)
+      const text = (result.content[0] as { text: string }).text;
+      const fileMatches = text.match(/^- 📄 `/gm);
+      expect(fileMatches?.length).toBe(10);
+    });
   });
 });
