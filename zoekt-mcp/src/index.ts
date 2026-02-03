@@ -73,14 +73,17 @@ OPTIONS:
   --version, -v         Show version number
 
 EXAMPLES:
-  # Start with stdio transport (for MCP clients)
+  # Start with stdio transport (for local MCP clients)
   zoekt-mcp --url http://localhost:6070
+
+  # Start with HTTP/SSE transport (for remote access)
+  zoekt-mcp --url http://localhost:6070 --transport http --port 3001
 
   # Start with debug logging
   zoekt-mcp --url http://localhost:6070 --debug
 
-  # Using environment variable
-  ZOEKT_URL=http://localhost:6070 zoekt-mcp
+  # Using environment variables (Docker)
+  ZOEKT_URL=http://zoekt-webserver:6070 MCP_TRANSPORT=http MCP_PORT=3001 zoekt-mcp
 
 AVAILABLE TOOLS:
   search        Search code across indexed repositories

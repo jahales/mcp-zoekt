@@ -10,8 +10,8 @@ WORKDIR /go/src/github.com/sourcegraph/zoekt
 # Clone zoekt source
 RUN git clone --depth 1 https://github.com/sourcegraph/zoekt.git .
 
-# Build zoekt binaries
-RUN go install ./cmd/zoekt-webserver ./cmd/zoekt-git-index ./cmd/zoekt-index ./cmd/zoekt
+# Build zoekt binaries (including mirror for GitHub)
+RUN go install ./cmd/zoekt-webserver ./cmd/zoekt-git-index ./cmd/zoekt-index ./cmd/zoekt ./cmd/zoekt-mirror-github
 
 FROM alpine:3.19
 

@@ -305,7 +305,7 @@ export function createFindReferencesHandler(
     if (cursor) {
       // For find_references, cursor is based on combined query
       const combinedQuery = `${definitionQuery}|${usageQuery}`;
-      const validation = validateCursor(cursor, combinedQuery, limit);
+      const validation = validateCursor(cursor, combinedQuery);
       if (!validation.valid) {
         return {
           content: [{ type: 'text' as const, text: `**Error**: ${validation.error}` }],

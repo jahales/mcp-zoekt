@@ -305,5 +305,68 @@ describe('search_symbols tool', () => {
       // Should include cursor for next page since there are more results
       expect((result.content[0] as { text: string }).text).toContain('cursor');
     });
+
+    // T022: limit=5 returns exactly 5 symbols
+    it('returns exactly limit number of symbols when more are available', async () => {
+      // Return 10 files, each with 1 symbol
+      mockClient.search.mockResolvedValue({
+        result: {
+          FileMatches: Array(10).fill(null).map((_, i) => ({
+            Repository: 'github.com/org/repo',
+            FileName: `src/handler${i}.ts`,
+            Branches: ['main'],
+            Language: 'TypeScript',
+            ChunkMatches: [{
+              Content: Buffer.from(`function test${i}() {`).toString('base64'),
+              ContentStart: { ByteOffset: 0, LineNumber: 1, Column: 1 },
+              Ranges: [{ Start: { ByteOffset: 9, LineNumber: 1, Column: 10 }, End: { ByteOffset: 13, LineNumber: 1, Column: 14 } }],
+              FileName: false,
+              SymbolInfo: [{ Sym: `test${i}`, Kind: 'function', Parent: '', ParentKind: '' }],
+            }],
+          })),
+          Stats: { MatchCount: 10, FileCount: 10, Duration: 5000000 },
+        },
+      });
+
+      const handler = createSearchSymbolsHandler(mockClient as unknown as ZoektClient, mockLogger);
+      const result = await handler({ query: 'test', limit: 5, contextLines: 3 });
+
+      // Should show exactly 5 symbols, not 10
+      const text = (result.content[0] as { text: string }).text;
+      // Count how many symbol entries appear (markdown bullet format: - **kind**)
+      const symbolMatches = text.match(/^- \*\*\w+\*\*/gm);
+      expect(symbolMatches?.length).toBe(5);
+    });
+
+    // T023: limit=10 across multi-symbol files returns 10 symbols (not 10 files)
+    it('returns limit symbols regardless of file distribution', async () => {
+      // Return 3 files, each with 5 symbols (15 total)
+      mockClient.search.mockResolvedValue({
+        result: {
+          FileMatches: Array(3).fill(null).map((_, fileIdx) => ({
+            Repository: 'github.com/org/repo',
+            FileName: `src/file${fileIdx}.ts`,
+            Branches: ['main'],
+            Language: 'TypeScript',
+            ChunkMatches: Array(5).fill(null).map((_, symIdx) => ({
+              Content: Buffer.from(`function method${fileIdx}_${symIdx}() {`).toString('base64'),
+              ContentStart: { ByteOffset: 0, LineNumber: symIdx * 10 + 1, Column: 1 },
+              Ranges: [{ Start: { ByteOffset: 9, LineNumber: symIdx * 10 + 1, Column: 10 }, End: { ByteOffset: 20, LineNumber: symIdx * 10 + 1, Column: 21 } }],
+              FileName: false,
+              SymbolInfo: [{ Sym: `method${fileIdx}_${symIdx}`, Kind: 'function', Parent: '', ParentKind: '' }],
+            })),
+          })),
+          Stats: { MatchCount: 15, FileCount: 3, Duration: 5000000 },
+        },
+      });
+
+      const handler = createSearchSymbolsHandler(mockClient as unknown as ZoektClient, mockLogger);
+      const result = await handler({ query: 'method', limit: 10, contextLines: 3 });
+
+      // Should show exactly 10 symbols from across the 3 files
+      const text = (result.content[0] as { text: string }).text;
+      const symbolMatches = text.match(/^- \*\*\w+\*\*/gm);
+      expect(symbolMatches?.length).toBe(10);
+    });
   });
 });

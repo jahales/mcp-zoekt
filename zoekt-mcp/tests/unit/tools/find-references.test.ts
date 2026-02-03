@@ -332,5 +332,57 @@ describe('find_references tool', () => {
         expect.any(Object)
       );
     });
+
+    // T025: limit correctly applies to find_references
+    it('returns exactly limit number of references when more are available', async () => {
+      // Mock returns 15 references (definitions + usages combined)
+      mockClient.search
+        .mockResolvedValueOnce({
+          result: {
+            FileMatches: Array(8).fill(null).map((_, i) => ({
+              Repository: 'github.com/org/repo',
+              FileName: `src/def${i}.ts`,
+              Branches: ['main'],
+              Language: 'TypeScript',
+              ChunkMatches: [{
+                Content: Buffer.from(`function handleRequest() {`).toString('base64'),
+                ContentStart: { ByteOffset: 0, LineNumber: i + 1, Column: 1 },
+                Ranges: [{ Start: { ByteOffset: 9, LineNumber: i + 1, Column: 10 }, End: { ByteOffset: 22, LineNumber: i + 1, Column: 23 } }],
+                FileName: false,
+                SymbolInfo: [{ Sym: 'handleRequest', Kind: 'function', Parent: '', ParentKind: '' }],
+              }],
+            })),
+            Stats: { MatchCount: 8, FileCount: 8, Duration: 5000000 },
+          },
+        })
+        .mockResolvedValueOnce({
+          result: {
+            FileMatches: Array(7).fill(null).map((_, i) => ({
+              Repository: 'github.com/org/repo',
+              FileName: `src/usage${i}.ts`,
+              Branches: ['main'],
+              Language: 'TypeScript',
+              ChunkMatches: [{
+                Content: Buffer.from(`handleRequest();`).toString('base64'),
+                ContentStart: { ByteOffset: 0, LineNumber: i + 1, Column: 1 },
+                Ranges: [{ Start: { ByteOffset: 0, LineNumber: i + 1, Column: 1 }, End: { ByteOffset: 13, LineNumber: i + 1, Column: 14 } }],
+                FileName: false,
+              }],
+            })),
+            Stats: { MatchCount: 7, FileCount: 7, Duration: 5000000 },
+          },
+        });
+
+      const handler = createFindReferencesHandler(mockClient as unknown as ZoektClient, mockLogger);
+      const result = await handler({ symbol: 'handleRequest', limit: 10, contextLines: 3 });
+
+      // Count reference entries (definitions: - 📍 **, usages: - `)
+      const text = (result.content[0] as { text: string }).text;
+      // Count both definition and usage markers
+      const defMatches = text.match(/^- 📍 \*\*/gm) ?? [];
+      const usageMatches = text.match(/^- `[^`]+:\d+`$/gm) ?? [];
+      const totalRefs = defMatches.length + usageMatches.length;
+      expect(totalRefs).toBe(10);
+    });
   });
 });
