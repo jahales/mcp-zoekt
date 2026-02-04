@@ -1,17 +1,22 @@
 # Zoekt Infrastructure - Code Search Indexing
 # See README.md for setup instructions
+#
+# Required environment variables:
+#   GITHUB_ORG - GitHub organization to index (e.g., "my-company")
 
 services:
   # GitHub mirror - clones repos from GitHub
   zoekt-mirror:
     image: zoekt:local
     container_name: zoekt-mirror
+    environment:
+      - GITHUB_ORG=${GITHUB_ORG:?GITHUB_ORG is required}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
         TOKEN=$$(cat /config/github-token.txt)
         git config --global url."https://$$TOKEN@github.com/".insteadOf "https://github.com/"
-        zoekt-mirror-github -dest /data/repos -org Etude-Labs -token /config/github-token.txt -no_archived
+        zoekt-mirror-github -dest /data/repos -org $${GITHUB_ORG} -token /config/github-token.txt -no_archived
     volumes:
       - zoekt-data:/data
       - ./config:/config:ro
@@ -23,11 +28,13 @@ services:
   zoekt-indexserver:
     image: zoekt:local
     container_name: zoekt-indexserver
+    environment:
+      - GITHUB_ORG=${GITHUB_ORG:?GITHUB_ORG is required}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
         echo "Indexing cloned repositories..."
-        for repo in /data/repos/github.com/Etude-Labs/*.git; do
+        for repo in /data/repos/github.com/$${GITHUB_ORG}/*.git; do
           if [ -d "$$repo" ]; then
             echo "Indexing $$repo..."
             zoekt-git-index -index /data/index "$$repo" || echo "Failed to index $$repo"

@@ -1,9 +1,9 @@
 [
   {
-    "GithubOrg": "Etude-Labs",
+    "GithubOrg": "YOUR_ORG_HERE",
     "CredentialPath": "/config/github-token.txt",
     "NoArchived": true,
     "Forks": false,
-    "Comment": "Etude-Labs - index all non-archived, non-fork repos"
+    "Comment": "Replace YOUR_ORG_HERE with your GitHub organization name"
   }
 ]

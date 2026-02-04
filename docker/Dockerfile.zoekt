@@ -1,5 +1,6 @@
-# Simplified Zoekt Dockerfile for CI/testing
-# Skips ctags build for faster builds
+# Zoekt Dockerfile with Universal Ctags support
+# Ctags enables symbol-aware code search (functions, classes, variables)
+
 FROM golang:1.24-alpine AS builder
 
 RUN apk add --no-cache ca-certificates git
@@ -13,10 +14,35 @@ RUN git clone --depth 1 https://github.com/sourcegraph/zoekt.git .
 # Build zoekt binaries (including mirror for GitHub)
 RUN go install ./cmd/zoekt-webserver ./cmd/zoekt-git-index ./cmd/zoekt-index ./cmd/zoekt ./cmd/zoekt-mirror-github
 
+# Build universal-ctags from source
+FROM alpine:3.19 AS ctags-builder
+
+RUN apk add --no-cache \
+    git \
+    build-base \
+    autoconf \
+    automake \
+    pkgconfig \
+    jansson-dev \
+    libseccomp-dev
+
+WORKDIR /build
+RUN git clone --depth 1 https://github.com/universal-ctags/ctags.git && \
+    cd ctags && \
+    ./autogen.sh && \
+    ./configure --prefix=/usr --enable-json --enable-seccomp && \
+    make -j$(nproc) && \
+    make install DESTDIR=/ctags-install
+
+# Production image
 FROM alpine:3.19
 
-RUN apk add --no-cache git ca-certificates tini
+RUN apk add --no-cache git ca-certificates tini jansson libseccomp
 
+# Copy zoekt binaries
 COPY --from=builder /go/bin/* /usr/local/bin/
+
+# Copy universal-ctags
+COPY --from=ctags-builder /ctags-install/usr/bin/ctags /usr/local/bin/universal-ctags
 
 ENTRYPOINT ["/sbin/tini", "--"]

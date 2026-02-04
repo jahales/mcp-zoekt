@@ -1,8 +1,21 @@
 #!/bin/bash
-# Deployment script for Zoekt + MCP on etude-dev VM
+# Deployment script for Zoekt + MCP
 # This script sets up the code search infrastructure with daily index updates
+#
+# Required environment variables:
+#   GITHUB_ORG - GitHub organization to index
+#
+# Usage: GITHUB_ORG=my-org ./deploy.sh
 
 set -e
+
+if [ -z "$GITHUB_ORG" ]; then
+    echo "ERROR: GITHUB_ORG environment variable is required"
+    echo "Usage: GITHUB_ORG=my-org ./deploy.sh"
+    exit 1
+fi
+
+export GITHUB_ORG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"

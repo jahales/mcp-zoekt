@@ -1,7 +1,10 @@
-# Zoekt Infrastructure - Production Deployment for etude-dev VM
+# Zoekt Infrastructure - Production Deployment
 # Daily index updates via cron (see update-index.sh)
 # Ports exposed: 6070 (Zoekt API), 3001 (MCP HTTP API)
 # See README.md for setup instructions
+#
+# Required environment variables:
+#   GITHUB_ORG - GitHub organization to index (e.g., "my-company")
 
 services:
   # GitHub mirror - clones/updates repos from GitHub
@@ -9,13 +12,15 @@ services:
   zoekt-mirror:
     image: zoekt:local
     container_name: zoekt-mirror
+    environment:
+      - GITHUB_ORG=${GITHUB_ORG:?GITHUB_ORG is required}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
         TOKEN=$$(cat /config/github-token.txt)
         git config --global url."https://$$TOKEN@github.com/".insteadOf "https://github.com/"
         echo "Starting mirror at $$(date)"
-        zoekt-mirror-github -dest /data/repos -org Etude-Labs -token /config/github-token.txt -no_archived
+        zoekt-mirror-github -dest /data/repos -org $${GITHUB_ORG} -token /config/github-token.txt -no_archived
         echo "Mirror complete at $$(date)"
     volumes:
       - zoekt-data:/data
@@ -30,11 +35,13 @@ services:
   zoekt-indexer:
     image: zoekt:local
     container_name: zoekt-indexer
+    environment:
+      - GITHUB_ORG=${GITHUB_ORG:?GITHUB_ORG is required}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
         echo "Starting indexing at $$(date)"
-        for repo in /data/repos/github.com/Etude-Labs/*.git; do
+        for repo in /data/repos/github.com/$${GITHUB_ORG}/*.git; do
           if [ -d "$$repo" ]; then
             echo "Indexing $$repo..."
             zoekt-git-index -index /data/index "$$repo" || echo "Failed to index $$repo"
@@ -67,9 +74,6 @@ services:
       start_period: 30s
     networks:
       - zoekt
-    labels:
-      - "com.etude.service=zoekt-webserver"
-      - "com.etude.port=6070"
 
   # MCP Server - exposes Zoekt via MCP protocol (HTTP transport for remote access)
   zoekt-mcp:
@@ -95,9 +99,6 @@ services:
       start_period: 10s
     networks:
       - zoekt
-    labels:
-      - "com.etude.service=zoekt-mcp"
-      - "com.etude.port=3001"
 
 volumes:
   zoekt-data:
