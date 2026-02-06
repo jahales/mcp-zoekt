@@ -1,6 +1,6 @@
-# mcp-zoekt
+# @jahales/mcp-zoekt
 
-[![npm version](https://img.shields.io/npm/v/mcp-zoekt.svg)](https://www.npmjs.com/package/mcp-zoekt)
+[![GitHub Packages](https://img.shields.io/badge/GitHub%20Packages-@jahales/mcp--zoekt-blue)](https://github.com/jahales/mcp-zoekt/pkgs/npm/mcp-zoekt)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 An MCP (Model Context Protocol) server that enables AI coding assistants to search code across indexed repositories using [Zoekt](https://github.com/sourcegraph/zoekt).
@@ -19,7 +19,7 @@ An MCP (Model Context Protocol) server that enables AI coding assistants to sear
 
 ### VS Code with GitHub Copilot
 
-[![Install with NPX in VS Code](https://img.shields.io/badge/VS_Code-NPM-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=zoekt&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22mcp-zoekt%22%2C%22--url%22%2C%22http%3A%2F%2Flocalhost%3A6070%22%5D%7D) [![Install with NPX in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-NPM-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=zoekt&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22mcp-zoekt%22%2C%22--url%22%2C%22http%3A%2F%2Flocalhost%3A6070%22%5D%7D&quality=insiders)
+[![Install with NPX in VS Code](https://img.shields.io/badge/VS_Code-NPM-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=zoekt&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40jahales%2Fmcp-zoekt%22%2C%22--url%22%2C%22http%3A%2F%2Flocalhost%3A6070%22%5D%7D) [![Install with NPX in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-NPM-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=zoekt&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40jahales%2Fmcp-zoekt%22%2C%22--url%22%2C%22http%3A%2F%2Flocalhost%3A6070%22%5D%7D&quality=insiders)
 
 [![Install with Docker in VS Code](https://img.shields.io/badge/VS_Code-Docker-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=zoekt&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22--network%22%2C%22host%22%2C%22-e%22%2C%22ZOEKT_URL%3Dhttp%3A%2F%2Flocalhost%3A6070%22%2C%22ghcr.io%2Fjahales%2Fmcp-zoekt%22%5D%7D) [![Install with Docker in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Docker-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=zoekt&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22--network%22%2C%22host%22%2C%22-e%22%2C%22ZOEKT_URL%3Dhttp%3A%2F%2Flocalhost%3A6070%22%2C%22ghcr.io%2Fjahales%2Fmcp-zoekt%22%5D%7D&quality=insiders)
 
@@ -27,8 +27,16 @@ An MCP (Model Context Protocol) server that enables AI coding assistants to sear
 
 ### Using npx (recommended)
 
+First, configure GitHub Packages registry in your `~/.npmrc`:
+
 ```bash
-npx mcp-zoekt --url http://localhost:6070
+@jahales:registry=https://npm.pkg.github.com
+```
+
+Then run:
+
+```bash
+npx @jahales/mcp-zoekt --url http://localhost:6070
 ```
 
 ### Using Docker
@@ -69,7 +77,7 @@ This MCP server requires a running Zoekt infrastructure. See the `docker/` direc
 
 3. Start the MCP server:
    ```bash
-   npx mcp-zoekt --url http://localhost:6070
+   npx @jahales/mcp-zoekt --url http://localhost:6070
    ```
 
 ## Configuration
@@ -90,16 +98,16 @@ This MCP server requires a running Zoekt infrastructure. See the `docker/` direc
 
 ```bash
 # Basic usage
-npx mcp-zoekt --url http://localhost:6070
+npx @jahales/mcp-zoekt --url http://localhost:6070
 
 # With debug logging
-npx mcp-zoekt --url http://localhost:6070 --debug
+npx @jahales/mcp-zoekt --url http://localhost:6070 --debug
 
 # Using environment variable
-ZOEKT_URL=http://localhost:6070 npx mcp-zoekt
+ZOEKT_URL=http://localhost:6070 npx @jahales/mcp-zoekt
 
 # Custom timeout
-npx mcp-zoekt --url http://localhost:6070 --timeout 60000
+npx @jahales/mcp-zoekt --url http://localhost:6070 --timeout 60000
 ```
 
 ## MCP Client Configuration
@@ -115,7 +123,7 @@ Add to `.vscode/mcp.json` in your workspace:
   "servers": {
     "zoekt": {
       "command": "npx",
-      "args": ["-y", "mcp-zoekt", "--url", "http://localhost:6070"]
+      "args": ["-y", "@jahales/mcp-zoekt", "--url", "http://localhost:6070"]
     }
   }
 }
@@ -149,7 +157,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
   "mcpServers": {
     "zoekt": {
       "command": "npx",
-      "args": ["-y", "mcp-zoekt", "--url", "http://localhost:6070"]
+      "args": ["-y", "@jahales/mcp-zoekt", "--url", "http://localhost:6070"]
     }
   }
 }
@@ -184,7 +192,7 @@ Add to your Continue configuration:
         "transport": {
           "type": "stdio",
           "command": "npx",
-          "args": ["-y", "mcp-zoekt", "--url", "http://localhost:6070"]
+          "args": ["-y", "@jahales/mcp-zoekt", "--url", "http://localhost:6070"]
         }
       }
     ]

@@ -16,6 +16,11 @@ export default [
       },
       globals: {
         ...globals.node,
+        // Node 18+ Fetch API globals
+        RequestInit: 'readonly',
+        Response: 'readonly',
+        AbortController: 'readonly',
+        fetch: 'readonly',
       },
     },
     plugins: {
