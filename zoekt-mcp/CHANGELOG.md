@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.0.0...mcp-zoekt-v2.0.1) (2026-02-06)
+
+
+### Bug Fixes
+
+* skip prepare script during Docker build npm ci ([#9](https://github.com/jahales/mcp-zoekt/issues/9)) ([3b3f56f](https://github.com/jahales/mcp-zoekt/commit/3b3f56fcd1352b4b8ec43d0185b2c781bd7d728c))
+
 ## [2.0.0](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v1.0.0...mcp-zoekt-v2.0.0) (2026-02-06)
 
 
