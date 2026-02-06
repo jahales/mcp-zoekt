@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { McpServerConfig } from './config.js';
 import type { Logger } from './logger.js';
 import { ZoektClient, ZoektError } from './zoekt/client.js';
+import { formatRepoList, formatEmptyResponse } from './formatting/repoList.js';
 import { createSearchSymbolsHandler } from './tools/search-symbols.js';
 import { createSearchFilesHandler } from './tools/search-files.js';
 import { createFindReferencesHandler } from './tools/find-references.js';
@@ -138,11 +139,8 @@ function registerListReposTool(
         logger.info({ filter, duration, count: repos.length }, 'list_repos complete');
 
         if (repos.length === 0) {
-          const message = filter
-            ? `No repositories found matching '${filter}'.`
-            : 'No repositories are currently indexed.';
           return {
-            content: [{ type: 'text' as const, text: `## Indexed Repositories\n\n${message}` }],
+            content: [{ type: 'text' as const, text: formatEmptyResponse(filter) }],
           };
         }
 
@@ -402,29 +400,7 @@ function formatSearchResults(
   return output;
 }
 
-/**
- * Format repository list
- */
-function formatRepoList(
-  repos: Array<{ name: string; branches: string[] }>,
-  filter?: string
-): string {
-  let output = '## Indexed Repositories\n\n';
-  
-  const filterNote = filter ? ` matching '${filter}'` : '';
-  output += `Found ${repos.length} repositories${filterNote}:\n\n`;
-
-  for (let i = 0; i < repos.length; i++) {
-    const repo = repos[i];
-    if (repo) {
-      const branchList = repo.branches.join(', ');
-      output += `${i + 1}. ${repo.name} (${branchList})\n`;
-    }
-  }
-
-  output += `\nTotal: ${repos.length} repositories\n`;
-  return output;
-}
+// formatRepoList, formatBytesCompact, and formatEmptyResponse are imported from './formatting/repoList.js'
 
 /**
  * Format file content response

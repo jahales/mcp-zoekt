@@ -42,6 +42,7 @@ describe('get_health tool', () => {
         documentCount: 1000,
         indexBytes: 5000000,
         contentBytes: 10000000,
+        shardCount: 12,
       };
 
       const status = buildHealthStatus(healthResult, statsResult, '1.0.0');
@@ -80,6 +81,7 @@ describe('get_health tool', () => {
         documentCount: 500,
         indexBytes: 1000000,
         contentBytes: 2000000,
+        shardCount: 6,
       };
 
       const status = buildHealthStatus(healthResult, statsResult, '2.0.0');
@@ -96,6 +98,7 @@ describe('get_health tool', () => {
         documentCount: 1000,
         indexBytes: 5000000,
         contentBytes: 10000000,
+        shardCount: 12,
       });
 
       const handler = createGetHealthHandler(mockClient as unknown as ZoektClient, mockLogger);
@@ -106,6 +109,7 @@ describe('get_health tool', () => {
       expect(text.toLowerCase()).toContain('healthy');
       expect(text).toContain('10 repositories');
       expect(text).toContain('1,000 documents');
+      expect(text).toContain('12 shards');
     });
 
     it('returns unhealthy response when Zoekt unavailable', async () => {
@@ -140,6 +144,7 @@ describe('get_health tool', () => {
         documentCount: 50000,
         indexBytes: 1073741824,  // 1 GB
         contentBytes: 5368709120,  // 5 GB
+        shardCount: 55,
       });
 
       const handler = createGetHealthHandler(mockClient as unknown as ZoektClient, mockLogger);
@@ -157,6 +162,7 @@ describe('get_health tool', () => {
         documentCount: 500,
         indexBytes: 1000000,
         contentBytes: 2000000,
+        shardCount: 7,
       });
 
       const handler = createGetHealthHandler(mockClient as unknown as ZoektClient, mockLogger);

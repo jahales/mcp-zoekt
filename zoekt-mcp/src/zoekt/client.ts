@@ -1,4 +1,19 @@
-import type { SearchResponse, Repository, HealthResponse, IndexStats } from './types.js';
+import type { SearchResponse, Repository, HealthResponse, IndexStats, ZoektListResponse } from './types.js';
+
+/**
+ * Parse a Go date string, treating Go zero-value dates as undefined.
+ * Go's zero time is 0001-01-01T00:00:00Z.
+ */
+function parseGoDate(dateStr: string | undefined | null): Date | undefined {
+  if (!dateStr || dateStr.startsWith('0001-01-01')) {
+    return undefined;
+  }
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) {
+    return undefined;
+  }
+  return date;
+}
 
 /**
  * Custom error class for Zoekt-related errors
@@ -92,18 +107,24 @@ export class ZoektClient {
 
   /**
    * List indexed repositories
-   * Uses POST /api/search endpoint with type:repo query
+   * Uses POST /api/list endpoint for complete, accurate results
    */
   async listRepos(filter?: string): Promise<Repository[]> {
-    // Use type:repo query to get list of repositories
-    const query = filter ? `type:repo ${filter}` : 'type:repo';
-    const url = `${this.baseUrl}/api/search`;
-    const body = JSON.stringify({
-      Q: query,
-      Opts: {
-        MaxDocDisplayCount: 1000, // Get enough results to capture all repos
-      },
-    });
+    // Validate and compile regex filter upfront if provided
+    let filterRegex: RegExp | undefined;
+    if (filter) {
+      try {
+        filterRegex = new RegExp(filter, 'i');
+      } catch {
+        throw new ZoektError(
+          `Invalid filter pattern: '${filter}' is not a valid regular expression`,
+          'QUERY_ERROR'
+        );
+      }
+    }
+
+    const url = `${this.baseUrl}/api/list`;
+    const body = JSON.stringify({ Q: '' });
     
     try {
       const response = await this.fetchWithTimeout(url, {
@@ -121,33 +142,35 @@ export class ZoektClient {
         );
       }
 
-      const data = await response.json() as { Result: SearchResponse['result'] };
-      const fileMatches = data.Result?.Files ?? data.Result?.FileMatches ?? [];
-      
-      // Extract unique repositories from file matches
-      const repoMap = new Map<string, Set<string>>();
-      for (const match of fileMatches) {
-        const repoName = match.Repository;
-        if (repoName) {
-          if (!repoMap.has(repoName)) {
-            repoMap.set(repoName, new Set());
-          }
-          for (const branch of match.Branches ?? ['HEAD']) {
-            repoMap.get(repoName)!.add(branch);
-          }
-        }
-      }
+      const data = await response.json() as ZoektListResponse;
 
-      const repositories: Repository[] = Array.from(repoMap.entries()).map(
-        ([name, branches]) => ({
-          name,
-          branches: Array.from(branches),
-        })
-      );
+      // Validate response shape so malformed responses don't appear as "no repos indexed"
+      const list = data?.List;
+      if (!list || (list.Repos !== null && !Array.isArray(list.Repos))) {
+        throw new ZoektError(
+          'Malformed /api/list response: missing or invalid List.Repos field',
+          'QUERY_ERROR'
+        );
+      }
+      const entries = list.Repos ?? [];
+      
+      const repositories: Repository[] = entries.map((entry) => ({
+        name: entry.Repository.Name,
+        url: entry.Repository.URL ?? '',
+        branches: (entry.Repository.Branches ?? []).map((b) => ({
+          name: b.Name,
+          version: b.Version,
+        })),
+        hasSymbols: entry.Repository.HasSymbols ?? false,
+        documentCount: entry.Stats.Documents ?? 0,
+        contentBytes: entry.Stats.ContentBytes ?? 0,
+        indexBytes: entry.Stats.IndexBytes ?? 0,
+        indexTime: parseGoDate(entry.IndexMetadata.IndexTime),
+        latestCommitDate: parseGoDate(entry.Repository.LatestCommitDate),
+      }));
 
       // Apply client-side filter if provided
-      if (filter) {
-        const filterRegex = new RegExp(filter, 'i');
+      if (filterRegex) {
         return repositories.filter((repo) => filterRegex.test(repo.name));
       }
 
@@ -156,8 +179,14 @@ export class ZoektClient {
       if (error instanceof ZoektError) {
         throw error;
       }
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new ZoektError(
+          `List repositories timed out after ${this.timeoutMs}ms.`,
+          'TIMEOUT'
+        );
+      }
       throw new ZoektError(
-        `Search backend unavailable at ${this.baseUrl}. Ensure zoekt-webserver is running.`,
+        `Zoekt backend unavailable at ${this.baseUrl}/api/list. Ensure zoekt-webserver is running.`,
         'UNAVAILABLE'
       );
     }
@@ -265,17 +294,12 @@ export class ZoektClient {
   }
 
   /**
-   * Get index statistics via type:repo query
-   * Uses POST /api/search endpoint
+   * Get index statistics via POST /api/list endpoint
+   * Returns aggregate stats across all indexed repositories
    */
   async getStats(): Promise<IndexStats> {
-    const url = `${this.baseUrl}/api/search`;
-    const body = JSON.stringify({
-      Q: 'type:repo',
-      Opts: {
-        MaxDocDisplayCount: 10000,
-      },
-    });
+    const url = `${this.baseUrl}/api/list`;
+    const body = JSON.stringify({ Q: '' });
     
     try {
       const response = await this.fetchWithTimeout(url, {
@@ -292,31 +316,35 @@ export class ZoektClient {
         );
       }
 
-      const data = await response.json() as { Result: SearchResponse['result'] };
-      const result = data.Result;
-      const fileMatches = result?.Files ?? result?.FileMatches ?? [];
-      
-      // Count unique repositories
-      const repos = new Set<string>();
-      for (const match of fileMatches) {
-        const repoName = match.Repository;
-        if (repoName) {
-          repos.add(repoName);
-        }
+      const data = await response.json() as ZoektListResponse;
+
+      const stats = data?.List?.Stats;
+      if (!stats) {
+        throw new ZoektError(
+          'Malformed /api/list response: missing List.Stats field',
+          'QUERY_ERROR'
+        );
       }
 
       return {
-        repositoryCount: repos.size,
-        documentCount: result?.FileCount ?? result?.Stats?.FileCount ?? 0,
-        indexBytes: result?.IndexBytesLoaded ?? result?.Stats?.IndexBytesLoaded ?? 0,
-        contentBytes: result?.ContentBytesLoaded ?? result?.Stats?.ContentBytesLoaded ?? 0,
+        repositoryCount: stats.Repos ?? 0,
+        documentCount: stats.Documents ?? 0,
+        indexBytes: stats.IndexBytes ?? 0,
+        contentBytes: stats.ContentBytes ?? 0,
+        shardCount: stats.Shards ?? 0,
       };
     } catch (error) {
       if (error instanceof ZoektError) {
         throw error;
       }
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new ZoektError(
+          `Get stats timed out after ${this.timeoutMs}ms.`,
+          'TIMEOUT'
+        );
+      }
       throw new ZoektError(
-        `Failed to get stats: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Zoekt backend unavailable at ${this.baseUrl}/api/list. Ensure zoekt-webserver is running.`,
         'UNAVAILABLE'
       );
     }
