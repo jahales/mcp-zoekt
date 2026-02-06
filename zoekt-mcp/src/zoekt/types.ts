@@ -92,16 +92,77 @@ export interface SearchStats {
   ShardsSkipped?: number;
 }
 
+// ============================================================
+// Zoekt /api/list wire types (raw JSON response from backend)
+// ============================================================
+
+/** Top-level envelope from POST /api/list */
+export interface ZoektListResponse {
+  List: ZoektRepoList;
+}
+
+export interface ZoektRepoList {
+  Repos: ZoektRepoListEntry[] | null;
+  Stats: ZoektRepoStats;
+  Crashes: number;
+}
+
+export interface ZoektRepoListEntry {
+  Repository: ZoektRepository;
+  IndexMetadata: ZoektIndexMetadata;
+  Stats: ZoektRepoStats;
+}
+
+/** Subset of Zoekt Repository fields we consume */
+export interface ZoektRepository {
+  Name: string;
+  URL: string;
+  Branches: ZoektBranch[] | null;
+  HasSymbols: boolean;
+  LatestCommitDate: string;
+}
+
+export interface ZoektBranch {
+  Name: string;
+  Version: string;
+}
+
+export interface ZoektIndexMetadata {
+  IndexTime: string;
+}
+
+export interface ZoektRepoStats {
+  Repos: number;
+  Shards: number;
+  Documents: number;
+  IndexBytes: number;
+  ContentBytes: number;
+}
+
+// ============================================================
+// Domain types (used by MCP tools)
+// ============================================================
+
 // List Repos types
 export interface ListReposInput {
   filter?: string;
 }
 
+export interface Branch {
+  name: string;
+  version: string;
+}
+
 export interface Repository {
   name: string;
-  branches: string[];
-  fileCount?: number;
-  indexTime?: Date;
+  url: string;
+  branches: Branch[];
+  hasSymbols: boolean;
+  documentCount: number;
+  contentBytes: number;
+  indexBytes: number;
+  indexTime: Date | undefined;
+  latestCommitDate: Date | undefined;
 }
 
 export interface ListReposResponse {
@@ -182,6 +243,7 @@ export interface IndexStats {
   documentCount: number;
   indexBytes: number;
   contentBytes: number;
+  shardCount: number;
 }
 
 /** Health status response */

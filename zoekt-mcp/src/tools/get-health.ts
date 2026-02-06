@@ -90,6 +90,7 @@ function formatHealthResults(health: HealthStatus): string {
   if (health.indexStats) {
     output += `| Repositories | ${formatNumber(health.indexStats.repositoryCount)} repositories |\n`;
     output += `| Documents | ${formatNumber(health.indexStats.documentCount)} documents |\n`;
+    output += `| Shards | ${formatNumber(health.indexStats.shardCount)} shards |\n`;
     output += `| Index Size | ${formatBytes(health.indexStats.indexBytes)} |\n`;
     output += `| Content Size | ${formatBytes(health.indexStats.contentBytes)} |\n`;
   }

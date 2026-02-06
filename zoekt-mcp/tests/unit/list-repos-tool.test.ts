@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
+import type { Repository } from '../../src/zoekt/types.js';
 
 // Test the list_repos input schema matches the contract
 describe('list_repos tool', () => {
@@ -29,38 +30,80 @@ describe('list_repos tool', () => {
 
   describe('result formatting', () => {
     it('should format header with count', () => {
-      const repos = [
-        { name: 'github.com/org/repo1', branches: ['main'] },
-        { name: 'github.com/org/repo2', branches: ['main', 'develop'] },
-      ];
+      const repos = makeRepos([
+        { name: 'github.com/org/repo1', branches: [{ name: 'main', version: 'abc1234' }] },
+        { name: 'github.com/org/repo2', branches: [{ name: 'main', version: 'def5678' }, { name: 'develop', version: '9876543' }] },
+      ]);
       const formatted = formatRepoList(repos);
       expect(formatted).toContain('## Indexed Repositories');
       expect(formatted).toContain('Found 2 repositories');
     });
 
     it('should format header with filter note', () => {
-      const repos = [{ name: 'github.com/org/repo1', branches: ['main'] }];
+      const repos = makeRepos([
+        { name: 'github.com/org/repo1', branches: [{ name: 'main', version: 'abc1234' }] },
+      ]);
       const formatted = formatRepoList(repos, 'org');
       expect(formatted).toContain("matching 'org'");
     });
 
-    it('should format each repo with branches', () => {
-      const repos = [
-        { name: 'github.com/org/repo1', branches: ['main', 'develop'] },
-      ];
+    it('should format each repo with enriched metadata', () => {
+      const repos = makeRepos([
+        {
+          name: 'github.com/org/repo1',
+          branches: [{ name: 'main', version: 'abc1234def5678' }, { name: 'develop', version: '9876543aabbcc' }],
+          hasSymbols: true,
+          documentCount: 1234,
+          contentBytes: 10500000,
+          indexTime: new Date('2026-01-16T00:00:00Z'),
+        },
+      ]);
       const formatted = formatRepoList(repos);
-      expect(formatted).toContain('github.com/org/repo1');
-      expect(formatted).toContain('main, develop');
+      // Bold repo name with doc count and size
+      expect(formatted).toContain('**github.com/org/repo1**');
+      expect(formatted).toContain('1,234 files');
+      // Branch names with truncated SHAs
+      expect(formatted).toContain('main@abc1234');
+      expect(formatted).toContain('develop@9876543');
+      // Symbol indicator and index date
+      expect(formatted).toContain('Symbols: ✅');
+      expect(formatted).toContain('Indexed: 2026-01-16');
     });
 
     it('should show total count at end', () => {
-      const repos = [
-        { name: 'github.com/org/repo1', branches: ['main'] },
-        { name: 'github.com/org/repo2', branches: ['main'] },
-        { name: 'github.com/org/repo3', branches: ['main'] },
-      ];
+      const repos = makeRepos([
+        { name: 'github.com/org/repo1', branches: [{ name: 'main', version: 'a' }] },
+        { name: 'github.com/org/repo2', branches: [{ name: 'main', version: 'b' }] },
+        { name: 'github.com/org/repo3', branches: [{ name: 'main', version: 'c' }] },
+      ]);
       const formatted = formatRepoList(repos);
       expect(formatted).toContain('Total: 3 repositories');
+    });
+
+    it('should show ❌ when symbols unavailable', () => {
+      const repos = makeRepos([
+        { name: 'github.com/org/repo1', branches: [], hasSymbols: false },
+      ]);
+      const formatted = formatRepoList(repos);
+      expect(formatted).toContain('Symbols: ❌');
+    });
+
+    it('should omit index date when undefined', () => {
+      const repos = makeRepos([
+        { name: 'github.com/org/repo1', branches: [], indexTime: undefined },
+      ]);
+      const formatted = formatRepoList(repos);
+      expect(formatted).toContain('Symbols:');
+      expect(formatted).not.toContain('Indexed:');
+    });
+
+    it('should handle empty branches array', () => {
+      const repos = makeRepos([
+        { name: 'github.com/org/repo1', branches: [] },
+      ]);
+      const formatted = formatRepoList(repos);
+      expect(formatted).toContain('**github.com/org/repo1**');
+      expect(formatted).not.toContain('Branches:');
     });
 
     it('should handle empty list', () => {
@@ -75,26 +118,77 @@ describe('list_repos tool', () => {
   });
 });
 
-// Helper functions that mirror the implementation
+/**
+ * Build Repository objects with sensible defaults.
+ * Mirrors the enriched Repository type from types.ts.
+ */
+function makeRepos(
+  overrides: Array<Partial<Repository> & { name: string }>
+): Repository[] {
+  return overrides.map((o) => ({
+    name: o.name,
+    url: o.url ?? '',
+    branches: o.branches ?? [],
+    hasSymbols: o.hasSymbols ?? false,
+    documentCount: o.documentCount ?? 0,
+    contentBytes: o.contentBytes ?? 0,
+    indexBytes: o.indexBytes ?? 0,
+    indexTime: o.indexTime,
+    latestCommitDate: o.latestCommitDate,
+  }));
+}
+
+/**
+ * Format repository list with enriched metadata.
+ * Mirrors the implementation in server.ts.
+ */
 function formatRepoList(
-  repos: Array<{ name: string; branches: string[] }>,
+  repos: Repository[],
   filter?: string
 ): string {
   let output = '## Indexed Repositories\n\n';
-  
+
   const filterNote = filter ? ` matching '${filter}'` : '';
   output += `Found ${repos.length} repositories${filterNote}:\n\n`;
 
   for (let i = 0; i < repos.length; i++) {
     const repo = repos[i];
     if (repo) {
-      const branchList = repo.branches.join(', ');
-      output += `${i + 1}. ${repo.name} (${branchList})\n`;
+      const docCount = repo.documentCount.toLocaleString('en-US');
+      const size = formatBytesCompact(repo.contentBytes);
+      output += `${i + 1}. **${repo.name}** (${docCount} files, ${size})\n`;
+
+      if (repo.branches.length > 0) {
+        const branchList = repo.branches
+          .map((b) => b.version ? `${b.name}@${b.version.slice(0, 7)}` : b.name)
+          .join(', ');
+        output += `   Branches: ${branchList}\n`;
+      }
+
+      const symbolIndicator = repo.hasSymbols ? '✅' : '❌';
+      const indexDate = repo.indexTime
+        ? repo.indexTime.toISOString().slice(0, 10)
+        : undefined;
+      const datePart = indexDate ? ` | Indexed: ${indexDate}` : '';
+      output += `   Symbols: ${symbolIndicator}${datePart}\n`;
     }
   }
 
   output += `\nTotal: ${repos.length} repositories\n`;
   return output;
+}
+
+function formatBytesCompact(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let unitIndex = 0;
+  let size = bytes;
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex++;
+  }
+
+  return unitIndex === 0 ? `${size} ${units[unitIndex]}` : `${size.toFixed(1)} ${units[unitIndex]}`;
 }
 
 function formatEmptyResponse(filter?: string): string {
