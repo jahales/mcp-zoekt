@@ -10,7 +10,8 @@ COPY package*.json ./
 COPY tsconfig.json ./
 
 # Install all dependencies (including dev for build)
-RUN npm ci
+# --ignore-scripts prevents "prepare" from running before source is copied
+RUN npm ci --ignore-scripts
 
 # Copy source and build
 COPY src/ ./src/
