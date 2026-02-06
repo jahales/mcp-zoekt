@@ -1,6 +1,6 @@
 {
   "name": "@jahales/mcp-zoekt",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "MCP server for Zoekt code search - enables AI assistants to search across indexed repositories",
   "license": "Apache-2.0",
   "mcpName": "io.github.jahales/mcp-zoekt",
