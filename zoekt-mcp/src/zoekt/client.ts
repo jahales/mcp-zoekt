@@ -110,10 +110,11 @@ export class ZoektClient {
    * Uses POST /api/list endpoint for complete, accurate results
    */
   async listRepos(filter?: string): Promise<Repository[]> {
-    // Validate regex filter upfront if provided
+    // Validate and compile regex filter upfront if provided
+    let filterRegex: RegExp | undefined;
     if (filter) {
       try {
-        new RegExp(filter, 'i');
+        filterRegex = new RegExp(filter, 'i');
       } catch {
         throw new ZoektError(
           `Invalid filter pattern: '${filter}' is not a valid regular expression`,
@@ -142,7 +143,16 @@ export class ZoektClient {
       }
 
       const data = await response.json() as ZoektListResponse;
-      const entries = data.List?.Repos ?? [];
+
+      // Validate response shape so malformed responses don't appear as "no repos indexed"
+      const list = data?.List;
+      if (!list || (list.Repos !== null && !Array.isArray(list.Repos))) {
+        throw new ZoektError(
+          'Malformed /api/list response: missing or invalid List.Repos field',
+          'QUERY_ERROR'
+        );
+      }
+      const entries = list.Repos ?? [];
       
       const repositories: Repository[] = entries.map((entry) => ({
         name: entry.Repository.Name,
@@ -160,8 +170,7 @@ export class ZoektClient {
       }));
 
       // Apply client-side filter if provided
-      if (filter) {
-        const filterRegex = new RegExp(filter, 'i');
+      if (filterRegex) {
         return repositories.filter((repo) => filterRegex.test(repo.name));
       }
 
@@ -177,7 +186,7 @@ export class ZoektClient {
         );
       }
       throw new ZoektError(
-        `Search backend unavailable at ${this.baseUrl}. Ensure zoekt-webserver is running.`,
+        `Zoekt backend unavailable at ${this.baseUrl}/api/list. Ensure zoekt-webserver is running.`,
         'UNAVAILABLE'
       );
     }
@@ -308,7 +317,14 @@ export class ZoektClient {
       }
 
       const data = await response.json() as ZoektListResponse;
-      const stats = data.List.Stats;
+
+      const stats = data?.List?.Stats;
+      if (!stats) {
+        throw new ZoektError(
+          'Malformed /api/list response: missing List.Stats field',
+          'QUERY_ERROR'
+        );
+      }
 
       return {
         repositoryCount: stats.Repos ?? 0,
@@ -328,7 +344,7 @@ export class ZoektClient {
         );
       }
       throw new ZoektError(
-        `Search backend unavailable at ${this.baseUrl}. Ensure zoekt-webserver is running.`,
+        `Zoekt backend unavailable at ${this.baseUrl}/api/list. Ensure zoekt-webserver is running.`,
         'UNAVAILABLE'
       );
     }

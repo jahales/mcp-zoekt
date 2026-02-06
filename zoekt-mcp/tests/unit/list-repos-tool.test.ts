@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import type { Repository } from '../../src/zoekt/types.js';
+import { formatRepoList, formatEmptyResponse } from '../../src/formatting/repoList.js';
 
 // Test the list_repos input schema matches the contract
 describe('list_repos tool', () => {
@@ -120,7 +121,6 @@ describe('list_repos tool', () => {
 
 /**
  * Build Repository objects with sensible defaults.
- * Mirrors the enriched Repository type from types.ts.
  */
 function makeRepos(
   overrides: Array<Partial<Repository> & { name: string }>
@@ -136,64 +136,4 @@ function makeRepos(
     indexTime: o.indexTime,
     latestCommitDate: o.latestCommitDate,
   }));
-}
-
-/**
- * Format repository list with enriched metadata.
- * Mirrors the implementation in server.ts.
- */
-function formatRepoList(
-  repos: Repository[],
-  filter?: string
-): string {
-  let output = '## Indexed Repositories\n\n';
-
-  const filterNote = filter ? ` matching '${filter}'` : '';
-  output += `Found ${repos.length} repositories${filterNote}:\n\n`;
-
-  for (let i = 0; i < repos.length; i++) {
-    const repo = repos[i];
-    if (repo) {
-      const docCount = repo.documentCount.toLocaleString('en-US');
-      const size = formatBytesCompact(repo.contentBytes);
-      output += `${i + 1}. **${repo.name}** (${docCount} files, ${size})\n`;
-
-      if (repo.branches.length > 0) {
-        const branchList = repo.branches
-          .map((b) => b.version ? `${b.name}@${b.version.slice(0, 7)}` : b.name)
-          .join(', ');
-        output += `   Branches: ${branchList}\n`;
-      }
-
-      const symbolIndicator = repo.hasSymbols ? '✅' : '❌';
-      const indexDate = repo.indexTime
-        ? repo.indexTime.toISOString().slice(0, 10)
-        : undefined;
-      const datePart = indexDate ? ` | Indexed: ${indexDate}` : '';
-      output += `   Symbols: ${symbolIndicator}${datePart}\n`;
-    }
-  }
-
-  output += `\nTotal: ${repos.length} repositories\n`;
-  return output;
-}
-
-function formatBytesCompact(bytes: number): string {
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let unitIndex = 0;
-  let size = bytes;
-
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex++;
-  }
-
-  return unitIndex === 0 ? `${size} ${units[unitIndex]}` : `${size.toFixed(1)} ${units[unitIndex]}`;
-}
-
-function formatEmptyResponse(filter?: string): string {
-  const message = filter
-    ? `No repositories found matching '${filter}'.`
-    : 'No repositories are currently indexed.';
-  return `## Indexed Repositories\n\n${message}`;
 }
