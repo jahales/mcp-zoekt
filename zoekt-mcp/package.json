@@ -1,5 +1,5 @@
 {
-  "name": "mcp-zoekt",
+  "name": "@jahales/mcp-zoekt",
   "version": "1.0.0",
   "description": "MCP server for Zoekt code search - enables AI assistants to search across indexed repositories",
   "license": "Apache-2.0",
@@ -12,6 +12,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jahales/mcp-zoekt.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "type": "module",
   "main": "dist/index.js",
