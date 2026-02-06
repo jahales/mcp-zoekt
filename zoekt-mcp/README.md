@@ -1,4 +1,4 @@
-# mcp-zoekt
+# @jahales/mcp-zoekt
 
 [![GitHub Packages](https://img.shields.io/badge/GitHub%20Packages-@jahales/mcp--zoekt-blue)](https://github.com/jahales/mcp-zoekt/pkgs/npm/mcp-zoekt)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
@@ -77,7 +77,7 @@ This MCP server requires a running Zoekt infrastructure. See the `docker/` direc
 
 3. Start the MCP server:
    ```bash
-npx @jahales/mcp-zoekt --url http://localhost:6070
+   npx @jahales/mcp-zoekt --url http://localhost:6070
    ```
 
 ## Configuration
