@@ -1,6 +1,6 @@
 ﻿# code-search Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-01-30
+Auto-generated from all feature plans. Last updated: 2026-02-13
 
 ## Active Technologies
 - TypeScript 5.x, Node.js 18+ + Vitest 2.x (projects feature), @modelcontextprotocol/sdk (test client), node:child_process (subprocess spawning) (002-e2e-integration-tests)
