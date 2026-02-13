@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.0.1...mcp-zoekt-v2.1.0) (2026-02-13)
+
+
+### Features
+
+* **docker:** continuous mirror/index sync in docker-compose ([#12](https://github.com/jahales/mcp-zoekt/issues/12)) ([35c9756](https://github.com/jahales/mcp-zoekt/commit/35c9756883d0e0ee716d1079051062b76e6e10ec))
+
 ## [2.0.1](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.0.0...mcp-zoekt-v2.0.1) (2026-02-06)
 
 
