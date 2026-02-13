@@ -5,7 +5,7 @@ Docker Compose configuration for running Zoekt code search indexing infrastructu
 ## Overview
 
 This directory contains:
-- `docker-compose.yml` - Service definitions for Zoekt indexserver and webserver
+- `docker-compose.yml` - Service definitions for Zoekt sync and webserver
 - `config/mirror-config.json` - Configuration for which GitHub repositories to index
 - `config/github-token.txt` - Your GitHub Personal Access Token (not committed)
 
@@ -51,7 +51,7 @@ docker-compose up -d
 ### 5. Monitor Indexing
 
 ```bash
-docker-compose logs -f zoekt-indexserver
+docker-compose logs -f zoekt-sync
 ```
 
 Initial indexing may take 10-60 minutes depending on the number and size of repositories.
@@ -106,19 +106,19 @@ curl -s -X POST -d '{"Q":"type:repo"}' http://localhost:6070/api/search | jq '.R
 
 ## Environment Variables
 
-### zoekt-indexserver
+### zoekt-sync
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `INDEX_INTERVAL` | `1h` | How often to sync and re-index |
+| `SYNC_INTERVAL` | `3600` | Seconds between sync cycles |
 
 To change the sync interval:
 
 ```yaml
 # In docker-compose.yml
-zoekt-indexserver:
+zoekt-sync:
   environment:
-    - INDEX_INTERVAL=30m
+    - SYNC_INTERVAL=120
 ```
 
 ### zoekt-webserver
@@ -133,7 +133,7 @@ zoekt-indexserver:
 
 ```bash
 # View current indexing activity
-docker-compose logs zoekt-indexserver | tail -50
+docker-compose logs zoekt-sync | tail -50
 
 # Count indexed repositories
 curl -s -X POST -d '{"Q":"type:repo"}' http://localhost:6070/api/search | jq '[.Result.Files[].Repository] | unique | length'
@@ -142,8 +142,8 @@ curl -s -X POST -d '{"Q":"type:repo"}' http://localhost:6070/api/search | jq '[.
 ### Force Re-index
 
 ```bash
-# Restart indexserver to trigger immediate sync
-docker-compose restart zoekt-indexserver
+# Restart sync service to trigger immediate mirror+index cycle
+docker-compose restart zoekt-sync
 ```
 
 ### Clear All Data
@@ -159,8 +159,8 @@ docker-compose up -d
 # All services
 docker-compose logs -f
 
-# Just indexer
-docker-compose logs -f zoekt-indexserver
+# Just sync service
+docker-compose logs -f zoekt-sync
 
 # Just webserver
 docker-compose logs -f zoekt-webserver
@@ -176,9 +176,9 @@ Your GitHub token may be expired or have insufficient permissions.
 
 ### Repositories not appearing
 
-1. Check indexer logs for errors:
+1. Check sync logs for errors:
    ```bash
-   docker-compose logs zoekt-indexserver | grep -i error
+  docker-compose logs zoekt-sync | grep -i error
    ```
 
 2. Verify organization name is correct in config
@@ -197,7 +197,7 @@ Your GitHub token may be expired or have insufficient permissions.
 
 Check for configuration errors:
 ```bash
-docker-compose logs zoekt-indexserver
+docker-compose logs zoekt-sync
 ```
 
 Common issues:

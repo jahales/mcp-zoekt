@@ -11,6 +11,8 @@ Auto-generated from all feature plans. Last updated: 2026-01-30
 - N/A (stateless pagination via cursor encoding) (004-pagination-logic)
 - TypeScript 5.5+ with strict mode, ES2022 target + `@modelcontextprotocol/sdk` ^1.25.2, `zod` ^3.23.0, `pino` ^9.0.0 (005-zoekt-list-api)
 - N/A (stateless HTTP client to Zoekt backend) (005-zoekt-list-api)
+- POSIX shell (BusyBox/Alpine) + zoekt-mirror-github, zoekt-git-index (already in `zoekt:local` image) (006-continuous-reindex)
+- Docker volume (`zoekt-data`) — shared between sync and webserver containers (006-continuous-reindex)
 
 - TypeScript 5.x, Node.js 18+ + `@modelcontextprotocol/sdk`, `zod`, `pino` (logging) (001-zoekt-mcp-infra)
 
@@ -30,9 +32,9 @@ npm test; npm run lint
 TypeScript 5.x, Node.js 18+: Follow standard conventions
 
 ## Recent Changes
+- 006-continuous-reindex: Added POSIX shell (BusyBox/Alpine) + zoekt-mirror-github, zoekt-git-index (already in `zoekt:local` image)
 - 005-zoekt-list-api: Added TypeScript 5.5+ with strict mode, ES2022 target + `@modelcontextprotocol/sdk` ^1.25.2, `zod` ^3.23.0, `pino` ^9.0.0
 - 004-pagination-logic: Added TypeScript 5.x with strict mode + @modelcontextprotocol/sdk, Zod (validation), Pino (logging)
-- 003-zoekt-mcp-tools: Added TypeScript 5.x with strict mode + @modelcontextprotocol/sdk ^1.0.0, zod ^3.0.0, pino ^8.0.0
 
 
 <!-- MANUAL ADDITIONS START -->
