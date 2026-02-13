@@ -1,0 +1,26 @@
+# Build artifacts
+node_modules/
+dist/
+build/
+coverage/
+
+# VCS
+.git/
+
+# Docker metadata
+Dockerfile*
+.dockerignore
+
+# Logs and env
+*.log*
+.env*
+
+# Editor/system
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Temp
+*.tmp
+*.swp

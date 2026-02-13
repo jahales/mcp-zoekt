@@ -36,6 +36,6 @@ export default [
     },
   },
   {
-    ignores: ['dist/', 'node_modules/', '*.js'],
+    ignores: ['dist/', 'build/', 'coverage/', 'node_modules/', '*.min.js', '*.js'],
   },
 ];

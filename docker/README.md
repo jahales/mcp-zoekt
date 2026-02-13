@@ -5,8 +5,8 @@ Docker Compose configuration for running Zoekt code search indexing infrastructu
 ## Overview
 
 This directory contains:
-- `docker-compose.yml` - Service definitions for Zoekt indexserver and webserver
-- `config/mirror-config.json` - Configuration for which GitHub repositories to index
+- `docker-compose.yml` - Service definitions for Zoekt sync and webserver
+- `.env` (optional) - Environment variables such as `GITHUB_ORG` and `SYNC_INTERVAL`
 - `config/github-token.txt` - Your GitHub Personal Access Token (not committed)
 
 ## Quick Start
@@ -27,31 +27,30 @@ echo "ghp_your_token_here" > config/github-token.txt
 
 **Important**: Never commit this file. It's already in `.gitignore`.
 
-### 3. Configure Organizations
+### 3. Configure Organization
 
-Edit `config/mirror-config.json`:
+Set `GITHUB_ORG` (source of truth for `docker-compose.yml`):
 
-```json
-[
-  {
-    "GithubOrg": "your-org-name",
-    "CredentialPath": "/config/github-token.txt",
-    "NoArchived": true,
-    "Forks": false
-  }
-]
+```bash
+echo "GITHUB_ORG=your-org-name" > .env
+```
+
+Or export it in your shell before running compose:
+
+```bash
+export GITHUB_ORG=your-org-name
 ```
 
 ### 4. Start Services
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ### 5. Monitor Indexing
 
 ```bash
-docker-compose logs -f zoekt-indexserver
+docker compose logs -f zoekt-sync
 ```
 
 Initial indexing may take 10-60 minutes depending on the number and size of repositories.
@@ -64,61 +63,29 @@ curl -s -X POST -d '{"Q":"type:repo"}' http://localhost:6070/api/search | jq '.R
 
 ## Configuration Reference
 
-### mirror-config.json
+### Note on mirror-config.json
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `GithubOrg` | string | GitHub organization to index |
-| `GithubUser` | string | GitHub user to index (alternative to GithubOrg) |
-| `GitHubURL` | string | GitHub Enterprise URL (optional) |
-| `CredentialPath` | string | Path to token file inside container |
-| `Name` | string | Regex to filter repository names |
-| `Exclude` | string | Regex to exclude repositories |
-| `Topics` | string[] | Filter by repository topics |
-| `ExcludeTopics` | string[] | Exclude by repository topics |
-| `NoArchived` | boolean | Skip archived repositories |
-| `Forks` | boolean | Include forked repositories |
-| `Visibility` | string[] | Filter by visibility: `public`, `private`, `internal` |
+`docker-compose.yml` currently mirrors a single GitHub organization using `GITHUB_ORG`.
 
-### Multi-Organization Example
-
-```json
-[
-  {
-    "GithubOrg": "my-company",
-    "CredentialPath": "/config/github-token.txt",
-    "NoArchived": true,
-    "Forks": false,
-    "Topics": ["production", "core"]
-  },
-  {
-    "GithubOrg": "my-company-internal",
-    "CredentialPath": "/config/github-token.txt",
-    "NoArchived": true,
-    "Exclude": "^(deprecated|archive)-"
-  },
-  {
-    "GithubUser": "team-lead-username",
-    "CredentialPath": "/config/github-token.txt"
-  }
-]
-```
+`config/mirror-config.json` is not consumed by this local compose stack. If you need
+advanced multi-org scheduling/configuration, use the production workflow documented in
+`docker-compose.prod.yml` with `update-index.sh`.
 
 ## Environment Variables
 
-### zoekt-indexserver
+### zoekt-sync
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `INDEX_INTERVAL` | `1h` | How often to sync and re-index |
+| `SYNC_INTERVAL` | `3600` | Seconds between sync cycles |
 
 To change the sync interval:
 
 ```yaml
 # In docker-compose.yml
-zoekt-indexserver:
+zoekt-sync:
   environment:
-    - INDEX_INTERVAL=30m
+    - SYNC_INTERVAL=120
 ```
 
 ### zoekt-webserver
@@ -133,7 +100,7 @@ zoekt-indexserver:
 
 ```bash
 # View current indexing activity
-docker-compose logs zoekt-indexserver | tail -50
+docker compose logs zoekt-sync | tail -50
 
 # Count indexed repositories
 curl -s -X POST -d '{"Q":"type:repo"}' http://localhost:6070/api/search | jq '[.Result.Files[].Repository] | unique | length'
@@ -142,28 +109,28 @@ curl -s -X POST -d '{"Q":"type:repo"}' http://localhost:6070/api/search | jq '[.
 ### Force Re-index
 
 ```bash
-# Restart indexserver to trigger immediate sync
-docker-compose restart zoekt-indexserver
+# Restart sync service to trigger immediate mirror+index cycle
+docker compose restart zoekt-sync
 ```
 
 ### Clear All Data
 
 ```bash
-docker-compose down -v  # -v removes volumes
-docker-compose up -d
+docker compose down -v  # -v removes volumes
+docker compose up -d
 ```
 
 ### View Logs
 
 ```bash
 # All services
-docker-compose logs -f
+docker compose logs -f
 
-# Just indexer
-docker-compose logs -f zoekt-indexserver
+# Just sync service
+docker compose logs -f zoekt-sync
 
 # Just webserver
-docker-compose logs -f zoekt-webserver
+docker compose logs -f zoekt-webserver
 ```
 
 ## Troubleshooting
@@ -176,9 +143,9 @@ Your GitHub token may be expired or have insufficient permissions.
 
 ### Repositories not appearing
 
-1. Check indexer logs for errors:
+1. Check sync logs for errors:
    ```bash
-   docker-compose logs zoekt-indexserver | grep -i error
+  docker compose logs zoekt-sync | grep -i error
    ```
 
 2. Verify organization name is correct in config
@@ -197,7 +164,7 @@ Your GitHub token may be expired or have insufficient permissions.
 
 Check for configuration errors:
 ```bash
-docker-compose logs zoekt-indexserver
+docker compose logs zoekt-sync
 ```
 
 Common issues:
