@@ -7,6 +7,7 @@ import { z } from 'zod';
 import type { McpServerConfig } from './config.js';
 import type { Logger } from './logger.js';
 import { ZoektClient, ZoektError } from './zoekt/client.js';
+import type { FileMatch, SearchStats } from './zoekt/types.js';
 import { formatRepoList, formatEmptyResponse } from './formatting/repoList.js';
 import { createSearchSymbolsHandler } from './tools/search-symbols.js';
 import { createSearchFilesHandler } from './tools/search-files.js';
@@ -180,8 +181,8 @@ function registerFileContentTool(
       path: z.string().describe(
         'Path to the file within the repository'
       ),
-      branch: z.string().default('HEAD').describe(
-        'Branch name (default: HEAD)'
+      branch: z.string().optional().describe(
+        'Branch name (optional, defaults to HEAD or working tree)'
       ),
     },
     async ({ repository, path, branch }) => {
@@ -352,23 +353,15 @@ function registerGetHealthTool(
  */
 function formatSearchResults(
   query: string,
-  fileMatches: Array<{
-    Repository?: string;
-    Repo?: string;
-    FileName: string;
-    Branches: string[];
-    Language: string;
-    ChunkMatches?: Array<{ Content: string; ContentStart: { LineNumber: number } }>;
-    LineMatches?: Array<{ Line: string; LineNumber: number }>;
-  }>,
-  stats?: { MatchCount: number; FileCount: number; Duration: number }
+  fileMatches: FileMatch[],
+  stats?: SearchStats
 ): string {
   let output = `## Results for: \`${query}\`\n\n`;
 
   for (const match of fileMatches) {
     const repoName = match.Repo ?? match.Repository ?? 'Unknown';
     output += `### ${repoName} - ${match.FileName}\n`;
-    output += `Language: ${match.Language || 'Unknown'} | Branch: ${match.Branches[0] || 'HEAD'}\n\n`;
+    output += `Language: ${match.Language || 'Unknown'} | Branch: ${match.Branches?.[0] || 'HEAD'}\n\n`;
 
     // Handle ChunkMatches (newer format)
     if (match.ChunkMatches && match.ChunkMatches.length > 0) {
@@ -409,12 +402,12 @@ function formatSearchResults(
 function formatFileContent(
   repository: string,
   path: string,
-  branch: string,
+  branch: string | undefined,
   content: string,
   language: string
 ): string {
   let output = `## ${repository}/${path}\n\n`;
-  output += `Branch: ${branch}\n\n`;
+  output += `Branch: ${branch || 'HEAD'}\n\n`;
   output += `\`\`\`${language}\n`;
   output += content;
   if (!content.endsWith('\n')) {

@@ -7,16 +7,38 @@
 #   GITHUB_ORG - GitHub organization to index (e.g., "my-company")
 
 services:
+  # Init container (always runs) - ensures required directories exist in the volume
+  # This allows zoekt-webserver to mount /data read-only while still starting cleanly
+  # on first run (empty volume).
+  zoekt-init:
+    image: zoekt:local
+    container_name: zoekt-init
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        mkdir -p /data/index /data/repos
+    volumes:
+      - zoekt-data:/data
+    restart: "no"
+    networks:
+      - zoekt
+
   # GitHub mirror - clones/updates repos from GitHub
   # Runs on schedule via cron container
   zoekt-mirror:
     image: zoekt:local
     container_name: zoekt-mirror
     environment:
-      - GITHUB_ORG=${GITHUB_ORG:?GITHUB_ORG is required}
+      # NOTE: Do not use ${VAR:?} here (Compose interpolates even when profile is disabled)
+      - GITHUB_ORG=${GITHUB_ORG:-}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        if [ -z "$${GITHUB_ORG}" ]; then
+          echo "ERROR: GITHUB_ORG is required when using the 'mirror' profile" >&2
+          exit 1
+        fi
         TOKEN=$$(cat /config/github-token.txt)
         git config --global url."https://$$TOKEN@github.com/".insteadOf "https://github.com/"
         echo "Starting mirror at $$(date)"
@@ -36,10 +58,15 @@ services:
     image: zoekt:local
     container_name: zoekt-indexer
     environment:
-      - GITHUB_ORG=${GITHUB_ORG:?GITHUB_ORG is required}
+      # NOTE: Do not use ${VAR:?} here (Compose interpolates even when profile is disabled)
+      - GITHUB_ORG=${GITHUB_ORG:-}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        if [ -z "$${GITHUB_ORG}" ]; then
+          echo "ERROR: GITHUB_ORG is required when using the 'index' profile" >&2
+          exit 1
+        fi
         echo "Starting indexing at $$(date)"
         for repo in /data/repos/github.com/$${GITHUB_ORG}/*.git; do
           if [ -d "$$repo" ]; then
@@ -65,9 +92,12 @@ services:
       - "6070:6070"  # HTTP API - accessible from dev machines
     volumes:
       - zoekt-data:/data:ro
+    depends_on:
+      zoekt-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:6070/"]
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:6070/ > /dev/null 2>&1"]
       interval: 30s
       timeout: 10s
       retries: 3

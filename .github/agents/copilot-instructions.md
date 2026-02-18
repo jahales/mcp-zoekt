@@ -15,6 +15,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-13
 - Docker volume (`zoekt-data`) — shared between sync and webserver containers (006-continuous-reindex)
 - TypeScript 5.x, strict mode, ES2022 target + `@modelcontextprotocol/sdk` ^1.25.2, `pino` ^9.0.0, `zod` ^3.23.0 (007-enhance-logging)
 - N/A — this feature is purely about log output, not persistence (007-enhance-logging)
+- TypeScript 5.x (ES2022 target, NodeNext modules, strict mode) + `@modelcontextprotocol/sdk ^1.25.2`, `pino ^9.0.0`, `zod ^3.23.0` (008-workingtree-multi-org)
+- Zoekt index files on Docker volumes (`/data/index`), no database (008-workingtree-multi-org)
 
 - TypeScript 5.x, Node.js 18+ + `@modelcontextprotocol/sdk`, `zod`, `pino` (logging) (001-zoekt-mcp-infra)
 
@@ -34,6 +36,7 @@ npm test; npm run lint
 TypeScript 5.x, Node.js 18+: Follow standard conventions
 
 ## Recent Changes
+- 008-workingtree-multi-org: Added TypeScript 5.x (ES2022 target, NodeNext modules, strict mode) + `@modelcontextprotocol/sdk ^1.25.2`, `pino ^9.0.0`, `zod ^3.23.0`
 - 007-enhance-logging: Added TypeScript 5.x, strict mode, ES2022 target + `@modelcontextprotocol/sdk` ^1.25.2, `pino` ^9.0.0, `zod` ^3.23.0
 - 006-continuous-reindex: Added POSIX shell (BusyBox/Alpine) + zoekt-mirror-github, zoekt-git-index (already in `zoekt:local` image)
 - 005-zoekt-list-api: Added TypeScript 5.5+ with strict mode, ES2022 target + `@modelcontextprotocol/sdk` ^1.25.2, `zod` ^3.23.0, `pino` ^9.0.0

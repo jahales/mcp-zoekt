@@ -1,44 +1,32 @@
-# Zoekt Infrastructure - Code Search Indexing (continuous sync)
-# See README.md for setup instructions
+# Zoekt Infrastructure - Code Search Indexing
 #
-# Required environment variables:
-#   GITHUB_ORG - GitHub organization to index (e.g., "my-company")
+# Supports multiple deployment modes using Docker Compose profiles:
+#   - workingtree: index a local directory (WORKSPACE_ROOT)
+#   - github: mirror one or more GitHub orgs (GITHUB_ORGS or legacy GITHUB_ORG)
+#
+# Configure profiles and variables via docker/.env (see docker/.env.example).
 
 services:
-  # Sync service - mirrors and indexes repositories continuously
-  zoekt-sync:
+  # Init container (always runs) - ensures required directories exist in the volume
+  # This allows zoekt-webserver to mount /data read-only while still starting cleanly
+  # on first run (empty volume).
+  zoekt-init:
     image: zoekt:local
-    container_name: zoekt-sync
-    environment:
-      - GITHUB_ORG=${GITHUB_ORG:?GITHUB_ORG is required}
-      - SYNC_INTERVAL=${SYNC_INTERVAL:-3600}
+    container_name: zoekt-init
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        TOKEN=$$(cat /config/github-token.txt)
-        git config --global url."https://$$TOKEN@github.com/".insteadOf "https://github.com/"
-        while true; do
-          echo "[$$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Sync cycle starting for $${GITHUB_ORG}"
-          echo "[$$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Mirroring $${GITHUB_ORG}..."
-          zoekt-mirror-github -dest /data/repos -org $${GITHUB_ORG} -token /config/github-token.txt -no_archived || true
-          echo "[$$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Indexing repositories..."
-          for repo in /data/repos/github.com/$${GITHUB_ORG}/*.git; do
-            if [ -d "$$repo" ]; then
-              echo "Indexing $$repo..."
-              zoekt-git-index -index /data/index "$$repo" || echo "Failed to index $$repo"
-            fi
-          done
-          echo "[$$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Sync cycle complete. Sleeping $${SYNC_INTERVAL}s..."
-          sleep $${SYNC_INTERVAL}
-        done
+        set -eu
+        mkdir -p /data/index /data/repos
     volumes:
       - zoekt-data:/data
-      - ./config:/config:ro
-    restart: unless-stopped
+    restart: "no"
     networks:
       - zoekt
 
+  # Webserver (always runs)
   zoekt-webserver:
+    # No profiles key - always starts
     image: zoekt:local
     container_name: zoekt-webserver
     command: zoekt-webserver -index /data/index -rpc
@@ -46,12 +34,100 @@ services:
       - "6070:6070"
     volumes:
       - zoekt-data:/data:ro
+    depends_on:
+      zoekt-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:6070/"]
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:6070/ > /dev/null 2>&1"]
       interval: 30s
       timeout: 10s
       retries: 3
+    networks:
+      - zoekt
+
+  # Working-tree indexer (profile: workingtree)
+  zoekt-indexer:
+    profiles: [workingtree]
+    image: zoekt:local
+    container_name: zoekt-indexer
+    environment:
+      # NOTE: Do not use ${VAR:?} here (Compose interpolates even when profile is disabled)
+      - WORKSPACE_ROOT=${WORKSPACE_ROOT:-}
+      - INDEX_INTERVAL=${INDEX_INTERVAL:-60}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ -z "$${WORKSPACE_ROOT}" ]; then
+          echo "ERROR: WORKSPACE_ROOT is required when using the 'workingtree' profile" >&2
+          exit 1
+        fi
+        while true; do
+          echo "[$$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Indexing working tree..."
+          zoekt-index \
+            -index /data/index \
+            -ignore_dirs "node_modules,dist,build,vendor,.git,.hg,.svn,__pycache__,.venv,.tox,.mypy_cache,.pytest_cache,coverage,.nyc_output,.next,.nuxt" \
+            /workspace || true
+          echo "[$$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Indexing complete. Sleeping $${INDEX_INTERVAL}s..."
+          sleep $${INDEX_INTERVAL}
+        done
+    volumes:
+      - zoekt-data:/data
+      - ${WORKSPACE_ROOT:-.}:/workspace:ro
+    restart: unless-stopped
+    networks:
+      - zoekt
+
+  # GitHub sync + indexing (profile: github)
+  zoekt-sync:
+    profiles: [github]
+    image: zoekt:local
+    container_name: zoekt-sync
+    environment:
+      # NOTE: Do not use ${VAR:?} here.
+      # Docker Compose interpolates variables even when a profile is disabled,
+      # so required-variable expansion would prevent running non-github profiles.
+      - GITHUB_ORGS=${GITHUB_ORGS:-${GITHUB_ORG:-}}
+      - SYNC_INTERVAL=${SYNC_INTERVAL:-3600}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ -z "$${GITHUB_ORGS}" ]; then
+          echo "ERROR: Set GITHUB_ORGS or GITHUB_ORG when using the 'github' profile" >&2
+          exit 1
+        fi
+        if [ ! -f /config/github-token.txt ]; then
+          echo "ERROR: Missing token file at /config/github-token.txt" >&2
+          exit 1
+        fi
+
+        TOKEN=$$(cat /config/github-token.txt)
+        git config --global url."https://$$TOKEN@github.com/".insteadOf "https://github.com/"
+        while true; do
+          # Deduplicate and trim org names
+          ORGS=$$(echo "$${GITHUB_ORGS}" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$$//' | sort -u | tr '\n' ',' | sed 's/,$$//')
+          IFS=','
+          for ORG in $${ORGS}; do
+            echo "[$$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Sync cycle starting for $${ORG}"
+            echo "[$$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Mirroring $${ORG}..."
+            zoekt-mirror-github -dest /data/repos -org "$${ORG}" -token /config/github-token.txt -no_archived || echo "WARNING: Failed to mirror $${ORG}, continuing..."
+            echo "[$$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Indexing $${ORG} repositories..."
+            for repo in /data/repos/github.com/$${ORG}/*.git; do
+              if [ -d "$$repo" ]; then
+                echo "Indexing $$repo..."
+                zoekt-git-index -index /data/index "$$repo" || echo "Failed to index $$repo"
+              fi
+            done
+            echo "[$$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Sync complete for $${ORG}"
+          done
+          unset IFS
+          echo "[$$(date -u '+%Y-%m-%dT%H:%M:%SZ')] All orgs synced. Sleeping $${SYNC_INTERVAL}s..."
+          sleep $${SYNC_INTERVAL}
+        done
+    volumes:
+      - zoekt-data:/data
+      - ./config:/config:ro
+    restart: unless-stopped
     networks:
       - zoekt
 

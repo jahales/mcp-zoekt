@@ -36,7 +36,7 @@ export function formatRepoList(
       output += `${i + 1}. **${repo.name}** (${docCount} files, ${size})\n`;
 
       // Branches with truncated SHAs
-      if (repo.branches.length > 0) {
+      if (repo.branches && repo.branches.length > 0) {
         const branchList = repo.branches
           .map((b) => b.version ? `${b.name}@${b.version.slice(0, 7)}` : b.name)
           .join(', ');

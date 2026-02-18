@@ -140,7 +140,7 @@ export function extractSymbols(fileMatches: FileMatch[]): Symbol[] {
           continue;  // Skip null entries
         }
         
-        const range = chunk.Ranges[i];
+        const range = chunk.Ranges?.[i];
         const lineNumber = range?.Start?.LineNumber ?? chunk.ContentStart.LineNumber;
         const column = range?.Start?.Column ?? chunk.ContentStart.Column;
         
