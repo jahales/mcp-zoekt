@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.5](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.2.4...mcp-zoekt-v2.2.5) (2026-02-18)
+
+
+### Bug Fixes
+
+* **ci:** force OIDC-only npm publish ([4f7af2e](https://github.com/jahales/mcp-zoekt/commit/4f7af2e0495fceb25da8d113c0c46edbb3f57db4))
+
 ## [2.2.4](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.2.3...mcp-zoekt-v2.2.4) (2026-02-18)
 
 
