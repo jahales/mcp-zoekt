@@ -369,7 +369,7 @@ export function createFindReferencesHandler(
       };
     } catch (error) {
       const duration = Date.now() - startTime;
-      logger.error({ symbol, duration, error }, 'find_references error');
+      logger.error({ symbol, duration, err: error }, 'find_references error');
       
       const structuredError = enhanceError(error);
       const errorText = formatStructuredError(structuredError);

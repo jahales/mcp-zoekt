@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { randomUUID } from 'crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'http';
 import { z } from 'zod';
 import type { McpServerConfig } from './config.js';
@@ -101,7 +102,7 @@ function registerSearchTool(
         };
       } catch (error) {
         const duration = Date.now() - startTime;
-        logger.error({ query, duration, error }, 'search error');
+        logger.error({ query, duration, err: error }, 'search error');
 
         return {
           content: [{ type: 'text' as const, text: formatError(error) }],
@@ -150,7 +151,7 @@ function registerListReposTool(
         };
       } catch (error) {
         const duration = Date.now() - startTime;
-        logger.error({ filter, duration, error }, 'list_repos error');
+        logger.error({ filter, duration, err: error }, 'list_repos error');
 
         return {
           content: [{ type: 'text' as const, text: formatError(error) }],
@@ -200,7 +201,7 @@ function registerFileContentTool(
         };
       } catch (error) {
         const duration = Date.now() - startTime;
-        logger.error({ repository, path, branch, duration, error }, 'file_content error');
+        logger.error({ repository, path, branch, duration, err: error }, 'file_content error');
 
         return {
           content: [{ type: 'text' as const, text: formatError(error) }],
@@ -517,16 +518,56 @@ async function startHttpServer(
   const host = config.host ?? '0.0.0.0';
   const port = config.port ?? 3001;
 
+  const httpLogger = logger.child({ module: 'http' });
+
   // Track active SSE transports per session
   const transports = new Map<string, SSEServerTransport>();
 
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
+    // Do not trust the Host header for URL parsing; we only need path + query.
+    const url = new URL(req.url ?? '/', 'http://localhost');
+
+    const requestIdHeader = req.headers['x-request-id'];
+    const requestIdRaw = Array.isArray(requestIdHeader) ? requestIdHeader[0] : requestIdHeader;
+    const requestIdCandidate = requestIdRaw?.trim();
+    const requestId = requestIdCandidate && requestIdCandidate.length <= 128 ? requestIdCandidate : randomUUID();
+
+    const startTime = process.hrtime.bigint();
+    const method = req.method ?? 'GET';
+    const path = url.pathname;
+    const remoteAddress = getClientIp(req);
+    const userAgentHeader = req.headers['user-agent'];
+    const userAgent = Array.isArray(userAgentHeader) ? userAgentHeader[0] : userAgentHeader;
+
+    const reqLogger = httpLogger.child({
+      requestId,
+      method,
+      path,
+      ...(remoteAddress ? { remoteAddress } : {}),
+      ...(userAgent ? { userAgent } : {}),
+    });
     
     // Add CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    // Allow clients to send an inbound request id and read it back.
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Request-Id');
+    res.setHeader('Access-Control-Expose-Headers', 'X-Request-Id');
+    res.setHeader('X-Request-Id', requestId);
+
+    res.on('finish', () => {
+      const durationMsRaw = Number(process.hrtime.bigint() - startTime) / 1_000_000;
+      const durationMs = Math.round(durationMsRaw * 100) / 100;
+      const statusCode = res.statusCode;
+
+      if (statusCode >= 500) {
+        reqLogger.error({ statusCode, durationMs }, 'request completed');
+      } else if (statusCode >= 400) {
+        reqLogger.warn({ statusCode, durationMs }, 'request completed');
+      } else {
+        reqLogger.info({ statusCode, durationMs }, 'request completed');
+      }
+    });
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
@@ -536,6 +577,7 @@ async function startHttpServer(
 
     // Health check endpoint
     if (url.pathname === '/health' && req.method === 'GET') {
+      reqLogger.debug({ sessions: transports.size }, 'health check');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'ok', transport: 'http', sessions: transports.size }));
       return;
@@ -543,15 +585,16 @@ async function startHttpServer(
 
     // SSE endpoint - client connects here for server-sent events
     if (url.pathname === '/sse' && req.method === 'GET') {
-      logger.info('New SSE connection');
-      
       const transport = new SSEServerTransport('/messages', res);
-      const sessionId = crypto.randomUUID();
+      const sessionId = randomUUID();
+      const sseLogger = reqLogger.child({ sessionId });
       transports.set(sessionId, transport);
+
+      sseLogger.info('sse connection opened');
 
       // Clean up on close
       res.on('close', () => {
-        logger.info({ sessionId }, 'SSE connection closed');
+        sseLogger.info('sse connection closed');
         transports.delete(sessionId);
       });
 
@@ -563,13 +606,17 @@ async function startHttpServer(
     if (url.pathname === '/messages' && req.method === 'POST') {
       // Find the transport from the last SSE connection
       // In production, you'd use session IDs from headers/query params
-      const transport = [...transports.values()].pop();
+      const lastSession = Array.from(transports.entries()).pop();
+      const sessionId = lastSession?.[0];
+      const transport = lastSession?.[1];
       
       if (!transport) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'No active SSE connection' }));
         return;
       }
+
+      const sseLogger = sessionId ? reqLogger.child({ sessionId }) : reqLogger;
 
       // Collect body
       const chunks: Buffer[] = [];
@@ -578,10 +625,12 @@ async function startHttpServer(
       }
       const body = Buffer.concat(chunks).toString();
 
+      sseLogger.info({ bodyBytes: body.length }, 'message received');
+
       try {
         await transport.handlePostMessage(req, res, body);
       } catch (error) {
-        logger.error({ error }, 'Error handling message');
+        sseLogger.error({ err: error }, 'Error handling message');
         if (!res.headersSent) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Internal server error' }));
@@ -591,6 +640,7 @@ async function startHttpServer(
     }
 
     // 404 for unknown routes
+    reqLogger.warn('route not found');
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Not found' }));
   });
@@ -602,4 +652,18 @@ async function startHttpServer(
       resolve();
     });
   });
+}
+
+function getClientIp(req: IncomingMessage): string | undefined {
+  const forwardedForHeader = req.headers['x-forwarded-for'];
+  const forwardedFor = Array.isArray(forwardedForHeader) ? forwardedForHeader[0] : forwardedForHeader;
+
+  if (forwardedFor) {
+    const first = forwardedFor.split(',')[0]?.trim();
+    if (first) {
+      return first;
+    }
+  }
+
+  return req.socket.remoteAddress ?? undefined;
 }

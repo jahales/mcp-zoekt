@@ -26,3 +26,4 @@ Thumbs.db
 # Temporary
 *.tmp
 *.swp
+.tmp-*.pid
