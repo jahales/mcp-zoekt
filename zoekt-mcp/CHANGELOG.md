@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.2](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.2.1...mcp-zoekt-v2.2.2) (2026-02-18)
+
+
+### Bug Fixes
+
+* **zoekt-mcp:** publish to npmjs by default ([#22](https://github.com/jahales/mcp-zoekt/issues/22)) ([ca0d0c9](https://github.com/jahales/mcp-zoekt/commit/ca0d0c9224a94ddfa8ceb39b56e14203c28a9a98))
+
 ## [2.2.1](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.2.0...mcp-zoekt-v2.2.1) (2026-02-18)
 
 
