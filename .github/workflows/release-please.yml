@@ -71,9 +71,9 @@ jobs:
     name: Publish to npmjs
     runs-on: ubuntu-latest
     needs: [release-please, test]
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    # Trusted Publishing (OIDC) must be configured on npmjs for this package.
+    # Guard with a repo variable so releases don't fail while bootstrapping.
+    if: ${{ needs.release-please.outputs.release_created == 'true' && vars.NPMJS_TRUSTED_PUBLISHING_ENABLED == 'true' }}
 
     steps:
       - name: Checkout
@@ -97,8 +97,9 @@ jobs:
 
       - name: Publish to npmjs
         working-directory: zoekt-mcp
-        if: ${{ env.NODE_AUTH_TOKEN != '' }}
-        run: npm publish --registry https://registry.npmjs.org --access public
+        # Uses npm Trusted Publishing (OIDC) rather than a long-lived token.
+        # --provenance enables provenance attestation.
+        run: npm publish --registry https://registry.npmjs.org --access public --provenance
 
   publish-docker:
     name: Publish Docker image
