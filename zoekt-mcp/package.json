@@ -13,9 +13,6 @@
     "type": "git",
     "url": "git+https://github.com/jahales/mcp-zoekt.git"
   },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
-  },
   "type": "module",
   "main": "dist/index.js",
   "bin": {

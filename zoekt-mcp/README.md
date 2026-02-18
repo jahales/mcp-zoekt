@@ -1,6 +1,4 @@
 # @jahales/mcp-zoekt
-
-[![GitHub Packages](https://img.shields.io/badge/GitHub%20Packages-@jahales/mcp--zoekt-blue)](https://github.com/jahales/mcp-zoekt/pkgs/npm/mcp-zoekt)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 An MCP (Model Context Protocol) server that enables AI coding assistants to search code across indexed repositories using [Zoekt](https://github.com/sourcegraph/zoekt).
@@ -26,15 +24,6 @@ An MCP (Model Context Protocol) server that enables AI coding assistants to sear
 ## Installation
 
 ### Using npx (recommended)
-
-First, configure GitHub Packages registry in your `~/.npmrc`:
-
-```bash
-@jahales:registry=https://npm.pkg.github.com
-```
-
-Then run:
-
 ```bash
 npx @jahales/mcp-zoekt --url http://localhost:6070
 ```
