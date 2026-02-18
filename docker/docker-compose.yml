@@ -7,6 +7,23 @@
 # Configure profiles and variables via docker/.env (see docker/.env.example).
 
 services:
+  # Init container (always runs) - ensures required directories exist in the volume
+  # This allows zoekt-webserver to mount /data read-only while still starting cleanly
+  # on first run (empty volume).
+  zoekt-init:
+    image: zoekt:local
+    container_name: zoekt-init
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        mkdir -p /data/index /data/repos
+    volumes:
+      - zoekt-data:/data
+    restart: "no"
+    networks:
+      - zoekt
+
   # Webserver (always runs)
   zoekt-webserver:
     # No profiles key - always starts
@@ -16,7 +33,10 @@ services:
     ports:
       - "6070:6070"
     volumes:
-      - zoekt-data:/data
+      - zoekt-data:/data:ro
+    depends_on:
+      zoekt-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://localhost:6070/ > /dev/null 2>&1"]

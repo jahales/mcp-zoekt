@@ -19,6 +19,8 @@ logs/
 # Environment
 .env
 .env.*
+!.env.example
+!docker/.env.example
 
 # OS
 .DS_Store
