@@ -16,10 +16,10 @@ services:
     ports:
       - "6070:6070"
     volumes:
-      - zoekt-data:/data:ro
+      - zoekt-data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:6070/"]
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:6070/ > /dev/null 2>&1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -32,11 +32,16 @@ services:
     image: zoekt:local
     container_name: zoekt-indexer
     environment:
-      - WORKSPACE_ROOT=${WORKSPACE_ROOT:?WORKSPACE_ROOT is required for workingtree profile}
+      # NOTE: Do not use ${VAR:?} here (Compose interpolates even when profile is disabled)
+      - WORKSPACE_ROOT=${WORKSPACE_ROOT:-}
       - INDEX_INTERVAL=${INDEX_INTERVAL:-60}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        if [ -z "$${WORKSPACE_ROOT}" ]; then
+          echo "ERROR: WORKSPACE_ROOT is required when using the 'workingtree' profile" >&2
+          exit 1
+        fi
         while true; do
           echo "[$$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Indexing working tree..."
           zoekt-index \
@@ -48,7 +53,7 @@ services:
         done
     volumes:
       - zoekt-data:/data
-      - ${WORKSPACE_ROOT}:/workspace:ro
+      - ${WORKSPACE_ROOT:-.}:/workspace:ro
     restart: unless-stopped
     networks:
       - zoekt
@@ -59,11 +64,23 @@ services:
     image: zoekt:local
     container_name: zoekt-sync
     environment:
-      - GITHUB_ORGS=${GITHUB_ORGS:-${GITHUB_ORG:?Set GITHUB_ORGS or GITHUB_ORG for github profile}}
+      # NOTE: Do not use ${VAR:?} here.
+      # Docker Compose interpolates variables even when a profile is disabled,
+      # so required-variable expansion would prevent running non-github profiles.
+      - GITHUB_ORGS=${GITHUB_ORGS:-${GITHUB_ORG:-}}
       - SYNC_INTERVAL=${SYNC_INTERVAL:-3600}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        if [ -z "$${GITHUB_ORGS}" ]; then
+          echo "ERROR: Set GITHUB_ORGS or GITHUB_ORG when using the 'github' profile" >&2
+          exit 1
+        fi
+        if [ ! -f /config/github-token.txt ]; then
+          echo "ERROR: Missing token file at /config/github-token.txt" >&2
+          exit 1
+        fi
+
         TOKEN=$$(cat /config/github-token.txt)
         git config --global url."https://$$TOKEN@github.com/".insteadOf "https://github.com/"
         while true; do

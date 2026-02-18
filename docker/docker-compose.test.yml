@@ -51,7 +51,7 @@ services:
       zoekt-test-indexer:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:6070/"]
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:6070/ > /dev/null 2>&1"]
       interval: 5s
       timeout: 5s
       retries: 12
