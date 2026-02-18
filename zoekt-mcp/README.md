@@ -67,12 +67,12 @@ This MCP server requires a running Zoekt infrastructure. See the `docker/` direc
    ```bash
    cd docker
    # Configure your GitHub token and organizations in config/
-   docker-compose up -d
+  docker compose up -d
    ```
 
 2. Wait for initial indexing (check logs):
    ```bash
-   docker-compose logs -f zoekt-indexserver
+  docker compose logs -f
    ```
 
 3. Start the MCP server:
