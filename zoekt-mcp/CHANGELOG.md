@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.1.0...mcp-zoekt-v2.2.0) (2026-02-18)
+
+
+### Features
+
+* workingtree indexing + multi-org ([#15](https://github.com/jahales/mcp-zoekt/issues/15)) ([ac818a0](https://github.com/jahales/mcp-zoekt/commit/ac818a01fccb0b356fa18dabe31a73eeafaae977))
+
 ## [2.1.0](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.0.1...mcp-zoekt-v2.1.0) (2026-02-13)
 
 
