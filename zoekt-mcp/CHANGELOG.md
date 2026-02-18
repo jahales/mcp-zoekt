@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.4](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.2.3...mcp-zoekt-v2.2.4) (2026-02-18)
+
+
+### Bug Fixes
+
+* **zoekt-mcp:** correct README license ([#28](https://github.com/jahales/mcp-zoekt/issues/28)) ([2f8287e](https://github.com/jahales/mcp-zoekt/commit/2f8287e10f11e2b655fe991eff0ecad2a813302e))
+
 ## [2.2.3](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.2.2...mcp-zoekt-v2.2.3) (2026-02-18)
 
 
