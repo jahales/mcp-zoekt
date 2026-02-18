@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.3](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.2.2...mcp-zoekt-v2.2.3) (2026-02-18)
+
+
+### Bug Fixes
+
+* **zoekt-mcp:** remove GitHub Packages npmrc override ([#25](https://github.com/jahales/mcp-zoekt/issues/25)) ([b6beb73](https://github.com/jahales/mcp-zoekt/commit/b6beb734188fb5c3cf1615104276baab52be7fbf))
+
 ## [2.2.2](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.2.1...mcp-zoekt-v2.2.2) (2026-02-18)
 
 
