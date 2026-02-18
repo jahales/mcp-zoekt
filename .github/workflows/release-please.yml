@@ -95,6 +95,16 @@ jobs:
         working-directory: zoekt-mcp
         run: npm run build
 
+      - name: Configure npmjs registry (no token)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/npmrc" <<'EOF'
+          registry=https://registry.npmjs.org/
+          always-auth=false
+          EOF
+          echo "NPM_CONFIG_USERCONFIG=$RUNNER_TEMP/npmrc" >> "$GITHUB_ENV"
+
       - name: Publish to npmjs
         working-directory: zoekt-mcp
         # Uses npm Trusted Publishing (OIDC) rather than a long-lived token.
