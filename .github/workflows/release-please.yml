@@ -67,10 +67,6 @@ jobs:
         working-directory: zoekt-mcp
         run: npm run build
 
-  publish-npm:
-    name: (disabled) Publish to GitHub Packages
-    if: ${{ false }}
-
   publish-npmjs:
     name: Publish to npmjs
     runs-on: ubuntu-latest
