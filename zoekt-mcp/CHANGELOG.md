@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.2.0...mcp-zoekt-v2.2.1) (2026-02-18)
+
+
+### Bug Fixes
+
+* **zoekt-mcp:** correct docker compose quickstart commands ([#20](https://github.com/jahales/mcp-zoekt/issues/20)) ([e958552](https://github.com/jahales/mcp-zoekt/commit/e9585524cdccf70cc32ecbdeaa7948cbc4f4aff9))
+
 ## [2.2.0](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.1.0...mcp-zoekt-v2.2.0) (2026-02-18)
 
 
