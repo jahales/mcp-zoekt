@@ -54,7 +54,7 @@ This MCP server requires a running Zoekt infrastructure. See the `docker/` direc
 
 1. Start Zoekt infrastructure:
    ```bash
-   cd docker
+  cd ../docker
    # Configure your GitHub token and organizations in config/
   docker compose up -d
    ```
