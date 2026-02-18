@@ -196,7 +196,7 @@ export function createSearchFilesHandler(
       };
     } catch (error) {
       const duration = Date.now() - startTime;
-      logger.error({ query: wrappedQuery, duration, error }, 'search_files error');
+      logger.error({ query: wrappedQuery, duration, err: error }, 'search_files error');
       
       const structuredError = enhanceError(error);
       const errorText = formatStructuredError(structuredError);

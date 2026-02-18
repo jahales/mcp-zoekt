@@ -297,7 +297,7 @@ export function createSearchSymbolsHandler(
       };
     } catch (error) {
       const duration = Date.now() - startTime;
-      logger.error({ query: wrappedQuery, duration, error }, 'search_symbols error');
+      logger.error({ query: wrappedQuery, duration, err: error }, 'search_symbols error');
       
       const structuredError = enhanceError(error);
       const errorText = formatStructuredError(structuredError);

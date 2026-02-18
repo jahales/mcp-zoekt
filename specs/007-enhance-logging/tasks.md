@@ -19,8 +19,9 @@
 
 **Purpose**: Enhance the root logger configuration that all downstream changes depend on
 
-- [ ] T001 Add Pino `err` standard serializer to logger config in `zoekt-mcp/src/logger.ts`
-- [ ] T002 Add Pino `redact` configuration for sensitive headers in `zoekt-mcp/src/logger.ts`
+- [X] T001 Add Pino `err` standard serializer to logger config in `zoekt-mcp/src/logger.ts`
+- [X] T002 Add Pino `redact` configuration for sensitive headers in `zoekt-mcp/src/logger.ts`
+
 
 **Checkpoint**: Root logger now serializes errors with stack traces and redacts sensitive headers. All child loggers inherit both automatically.
 
@@ -32,14 +33,14 @@
 
 **⚠️ CRITICAL**: These are single-line fixes across 8 call sites. All are independent (different files or different functions in the same file).
 
-- [ ] T003 [P] Fix error key `error` → `err` in search handler catch block in `zoekt-mcp/src/server.ts` (line ~104)
-- [ ] T004 [P] Fix error key `error` → `err` in list_repos handler catch block in `zoekt-mcp/src/server.ts` (line ~153)
-- [ ] T005 [P] Fix error key `error` → `err` in file_content handler catch block in `zoekt-mcp/src/server.ts` (line ~203)
-- [ ] T006 [P] Fix error key `error` → `err` in HTTP message handler catch block in `zoekt-mcp/src/server.ts` (line ~584)
-- [ ] T007 [P] Fix error key `error` → `err` in search_files handler catch block in `zoekt-mcp/src/tools/search-files.ts` (line ~199)
-- [ ] T008 [P] Fix error key `error` → `err` in search_symbols handler catch block in `zoekt-mcp/src/tools/search-symbols.ts` (line ~300)
-- [ ] T009 [P] Fix error key `error` → `err` in find_references handler catch block in `zoekt-mcp/src/tools/find-references.ts` (line ~372)
-- [ ] T010 [P] Fix error key `error` → `err` in get_health handler catch block in `zoekt-mcp/src/tools/get-health.ts` (line ~166)
+- [X] T003 [P] Fix error key `error` → `err` in search handler catch block in `zoekt-mcp/src/server.ts` (line ~104)
+- [X] T004 [P] Fix error key `error` → `err` in list_repos handler catch block in `zoekt-mcp/src/server.ts` (line ~153)
+- [X] T005 [P] Fix error key `error` → `err` in file_content handler catch block in `zoekt-mcp/src/server.ts` (line ~203)
+- [X] T006 [P] Fix error key `error` → `err` in HTTP message handler catch block in `zoekt-mcp/src/server.ts` (line ~584)
+- [X] T007 [P] Fix error key `error` → `err` in search_files handler catch block in `zoekt-mcp/src/tools/search-files.ts` (line ~199)
+- [X] T008 [P] Fix error key `error` → `err` in search_symbols handler catch block in `zoekt-mcp/src/tools/search-symbols.ts` (line ~300)
+- [X] T009 [P] Fix error key `error` → `err` in find_references handler catch block in `zoekt-mcp/src/tools/find-references.ts` (line ~372)
+- [X] T010 [P] Fix error key `error` → `err` in get_health handler catch block in `zoekt-mcp/src/tools/get-health.ts` (line ~166)
 
 **Checkpoint**: All error logs now produce `err.type`, `err.message`, and `err.stack` via Pino's standard serializer. US2 (Consistent Error Serialization) is fully satisfied.
 
@@ -53,13 +54,13 @@
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Add `import { randomUUID } from 'crypto'` to `zoekt-mcp/src/server.ts`
-- [ ] T012 [US1] Create `getClientIp(req)` helper function at bottom of `zoekt-mcp/src/server.ts` — extract first IP from `X-Forwarded-For` or fall back to `req.socket.remoteAddress`
-- [ ] T013 [US1] Create HTTP module child logger `httpLogger = logger.child({ module: 'http' })` in `startHttpServer()` in `zoekt-mcp/src/server.ts`
-- [ ] T014 [US1] Add request-scoped child logger at top of HTTP request handler in `zoekt-mcp/src/server.ts` — extract/generate `requestId`, capture `startTime` via `process.hrtime.bigint()`, create `reqLogger = httpLogger.child({ requestId, method, path, remoteAddress, userAgent })`
-- [ ] T015 [US1] Set `X-Request-Id` response header from resolved `requestId` in HTTP request handler in `zoekt-mcp/src/server.ts`
-- [ ] T016 [US1] Register `res.on('finish')` handler to log request completion with `statusCode`, `durationMs`, and level-by-status-code (info/warn/error) in `zoekt-mcp/src/server.ts`
-- [ ] T017 [US1] Replace existing ad-hoc SSE/message/404 log calls with `reqLogger` in `startHttpServer()` in `zoekt-mcp/src/server.ts`
+- [X] T011 [US1] Add `import { randomUUID } from 'crypto'` to `zoekt-mcp/src/server.ts`
+- [X] T012 [US1] Create `getClientIp(req)` helper function at bottom of `zoekt-mcp/src/server.ts` — extract first IP from `X-Forwarded-For` or fall back to `req.socket.remoteAddress`
+- [X] T013 [US1] Create HTTP module child logger `httpLogger = logger.child({ module: 'http' })` in `startHttpServer()` in `zoekt-mcp/src/server.ts`
+- [X] T014 [US1] Add request-scoped child logger at top of HTTP request handler in `zoekt-mcp/src/server.ts` — extract/generate `requestId`, capture `startTime` via `process.hrtime.bigint()`, create `reqLogger = httpLogger.child({ requestId, method, path, remoteAddress, userAgent })`
+- [X] T015 [US1] Set `X-Request-Id` response header from resolved `requestId` in HTTP request handler in `zoekt-mcp/src/server.ts`
+- [X] T016 [US1] Register `res.on('finish')` handler to log request completion with `statusCode`, `durationMs`, and level-by-status-code (info/warn/error) in `zoekt-mcp/src/server.ts`
+- [X] T017 [US1] Replace existing ad-hoc SSE/message/404 log calls with `reqLogger` in `startHttpServer()` in `zoekt-mcp/src/server.ts`
 
 **Checkpoint**: US1 complete. Every HTTP request to the server produces a structured log entry. `/health` → info, `/nonexistent` → warn (404), message handler errors → error (500). `X-Request-Id` header echoed on every response.
 
@@ -97,9 +98,9 @@
 
 ### Implementation for User Story 4
 
-- [ ] T018 [US4] Refactor SSE connection handler to generate `sessionId` via `randomUUID()` and create session-scoped child logger `sseLogger = reqLogger.child({ sessionId })` in `zoekt-mcp/src/server.ts`
-- [ ] T019 [US4] Use `sseLogger` for SSE connection opened, message received, and connection closed log entries in `zoekt-mcp/src/server.ts`
-- [ ] T020 [US4] Add `X-Request-Id` header validation — truncate to 128 characters if incoming header exceeds limit in `zoekt-mcp/src/server.ts`
+- [X] T018 [US4] Refactor SSE connection handler to generate `sessionId` via `randomUUID()` and create session-scoped child logger `sseLogger = reqLogger.child({ sessionId })` in `zoekt-mcp/src/server.ts`
+- [X] T019 [US4] Use `sseLogger` for SSE connection opened, message received, and connection closed log entries in `zoekt-mcp/src/server.ts`
+- [X] T020 [US4] Add `X-Request-Id` header validation — truncate to 128 characters if incoming header exceeds limit in `zoekt-mcp/src/server.ts`
 
 **Checkpoint**: US4 complete. SSE session logs share a `sessionId`. HTTP request logs share a `requestId`. `X-Request-Id` response header is always present.
 
@@ -121,11 +122,11 @@
 
 **Purpose**: Verification, cleanup, and documentation
 
-- [ ] T021 [P] Add health check debug log using `reqLogger` in the `/health` endpoint handler in `zoekt-mcp/src/server.ts`
-- [ ] T022 [P] Add 404 route-not-found `warn` log using `reqLogger` before writing 404 response in `zoekt-mcp/src/server.ts`
-- [ ] T023 Verify `npm run typecheck` passes with no errors in `zoekt-mcp/`
-- [ ] T024 Verify `npm run test:unit` passes with no errors in `zoekt-mcp/`
-- [ ] T025 Run quickstart.md manual validation — start server in HTTP mode, execute all 5 verification scenarios from `specs/007-enhance-logging/quickstart.md`
+- [X] T021 [P] Add health check debug log using `reqLogger` in the `/health` endpoint handler in `zoekt-mcp/src/server.ts`
+- [X] T022 [P] Add 404 route-not-found `warn` log using `reqLogger` before writing 404 response in `zoekt-mcp/src/server.ts`
+- [X] T023 Verify `npm run typecheck` passes with no errors in `zoekt-mcp/`
+- [X] T024 Verify `npm run test:unit` passes with no errors in `zoekt-mcp/`
+- [X] T025 Run quickstart.md manual validation — start server in HTTP mode, execute all 5 verification scenarios from `specs/007-enhance-logging/quickstart.md`
 
 ---
 

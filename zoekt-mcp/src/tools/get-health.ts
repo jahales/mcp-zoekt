@@ -163,7 +163,7 @@ export function createGetHealthHandler(
       };
     } catch (error) {
       const duration = Date.now() - startTime;
-      logger.error({ duration, error }, 'get_health error');
+      logger.error({ duration, err: error }, 'get_health error');
       
       // Even on error, return a health status (unhealthy)
       const healthStatus: HealthStatus = {
