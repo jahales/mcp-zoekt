@@ -524,12 +524,13 @@ async function startHttpServer(
   const transports = new Map<string, SSEServerTransport>();
 
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    const hostHeader = req.headers.host ?? 'localhost';
-    const url = new URL(req.url ?? '/', `http://${hostHeader}`);
+    // Do not trust the Host header for URL parsing; we only need path + query.
+    const url = new URL(req.url ?? '/', 'http://localhost');
 
     const requestIdHeader = req.headers['x-request-id'];
     const requestIdRaw = Array.isArray(requestIdHeader) ? requestIdHeader[0] : requestIdHeader;
-    const requestId = requestIdRaw ? requestIdRaw.slice(0, 128) : randomUUID();
+    const requestIdCandidate = requestIdRaw?.trim();
+    const requestId = requestIdCandidate && requestIdCandidate.length <= 128 ? requestIdCandidate : randomUUID();
 
     const startTime = process.hrtime.bigint();
     const method = req.method ?? 'GET';
@@ -549,7 +550,9 @@ async function startHttpServer(
     // Add CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    // Allow clients to send an inbound request id and read it back.
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Request-Id');
+    res.setHeader('Access-Control-Expose-Headers', 'X-Request-Id');
     res.setHeader('X-Request-Id', requestId);
 
     res.on('finish', () => {

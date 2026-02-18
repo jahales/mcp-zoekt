@@ -100,7 +100,7 @@
 
 - [X] T018 [US4] Refactor SSE connection handler to generate `sessionId` via `randomUUID()` and create session-scoped child logger `sseLogger = reqLogger.child({ sessionId })` in `zoekt-mcp/src/server.ts`
 - [X] T019 [US4] Use `sseLogger` for SSE connection opened, message received, and connection closed log entries in `zoekt-mcp/src/server.ts`
-- [X] T020 [US4] Add `X-Request-Id` header validation — truncate to 128 characters if incoming header exceeds limit in `zoekt-mcp/src/server.ts`
+- [X] T020 [US4] Add `X-Request-Id` header validation — ignore and generate a new UUID if incoming header is empty or exceeds 128 characters in `zoekt-mcp/src/server.ts`
 
 **Checkpoint**: US4 complete. SSE session logs share a `sessionId`. HTTP request logs share a `requestId`. `X-Request-Id` response header is always present.
 

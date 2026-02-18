@@ -111,7 +111,7 @@ Every HTTP request MUST produce a log entry on `res.finish` with this shape:
 ### Request ID Rules (FR-006)
 
 1. If `X-Request-Id` header is present and ≤128 characters, use it as `requestId`.
-2. If `X-Request-Id` header is absent or >128 characters, generate a new UUID via `crypto.randomUUID()`.
+2. If `X-Request-Id` header is absent, empty, or >128 characters, generate a new UUID via `crypto.randomUUID()`.
 3. Set `X-Request-Id` response header to the resolved `requestId`.
 
 ### Client IP Rules (FR-009)
@@ -166,3 +166,10 @@ All child loggers MUST inherit the root logger's `redact` config and `err` seria
 | `X-Request-Id` | Response | The `requestId` assigned to the request (propagated or generated) |
 
 This header MUST be set on **every** HTTP response, including 204 (CORS preflight), 404 (not found), and 400/500 error responses.
+
+### CORS exposure
+
+If CORS is enabled, the server SHOULD include:
+
+- `Access-Control-Allow-Headers: Content-Type, X-Request-Id` (to allow clients to send `X-Request-Id`)
+- `Access-Control-Expose-Headers: X-Request-Id` (to allow browser clients to read the response header)

@@ -90,7 +90,7 @@ Root Logger
 
 ## Validation Rules
 
-- `requestId`: Must be a valid string ≤128 characters. If the incoming `X-Request-Id` header exceeds 128 chars, truncate to 128.
+- `requestId`: Must be a valid string ≤128 characters. If the incoming `X-Request-Id` header is empty or exceeds 128 chars, ignore it and generate a new UUID.
 - `remoteAddress`: Omit from log entry if `undefined` or empty string (Unix socket, missing header).
 - `durationMs`: Round to 2 decimal places. Must be non-negative.
 - `module`: One of: `http`, `tools`. No freeform values.
