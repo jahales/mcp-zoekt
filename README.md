@@ -10,7 +10,7 @@ An MCP (Model Context Protocol) server that enables AI coding assistants to sear
 This repository provides:
 
 - **`zoekt-mcp/`** - TypeScript MCP server that connects AI assistants (GitHub Copilot, Claude, etc.) to Zoekt
-- **`docker/`** - Docker Compose infrastructure for self-hosting Zoekt with GitHub organization indexing
+- **`docker/`** - Docker Compose infrastructure for self-hosting Zoekt with working-tree indexing and GitHub organization mirroring (including multi-org)
 - **`zoekt/`** - Git submodule reference to [sourcegraph/zoekt](https://github.com/sourcegraph/zoekt)
 
 ## Quick Start
@@ -20,13 +20,15 @@ This repository provides:
 ```bash
 cd docker
 
-# Create config directory and add your GitHub token
-mkdir -p config
-echo "ghp_your_token_here" > config/github-token.txt
+# Create a .env from the template and choose a mode via COMPOSE_PROFILES
+cp .env.example .env
 
-# Configure organizations to index (edit docker-compose.yml)
-# Then start services
-docker-compose up -d
+# For GitHub mode only: create config directory and add your GitHub token
+# mkdir -p config
+# echo "ghp_your_token_here" > config/github-token.txt
+
+# Start services
+docker compose up -d
 ```
 
 ### 2. Configure Your AI Assistant

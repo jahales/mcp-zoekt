@@ -5,13 +5,51 @@ Docker Compose configuration for running Zoekt code search indexing infrastructu
 ## Overview
 
 This directory contains:
-- `docker-compose.yml` - Service definitions for Zoekt sync and webserver
-- `.env` (optional) - Environment variables such as `GITHUB_ORG` and `SYNC_INTERVAL`
-- `config/github-token.txt` - Your GitHub Personal Access Token (not committed)
+- `docker-compose.yml` - Service definitions for Zoekt webserver, GitHub sync, and working-tree indexing
+- `.env` (optional) - Environment variables such as `COMPOSE_PROFILES`, `WORKSPACE_ROOT`, `GITHUB_ORGS`, `SYNC_INTERVAL`
+- `.env.example` - Copy/paste template for `.env`
+- `config/github-token.txt` - Your GitHub Personal Access Token (not committed; required only for GitHub mode)
 
 ## Quick Start
 
-### 1. Create GitHub Token
+This stack supports multiple modes using Docker Compose **profiles**:
+
+- **workingtree**: index a local directory (no GitHub token required)
+- **github**: mirror one or more GitHub orgs (token required)
+- **dual-mode**: run both at the same time
+
+### Option A: Working Tree Mode (local directory)
+
+1. Create a `.env` file:
+
+```bash
+cp .env.example .env
+```
+
+2. Edit `.env` and set:
+
+- `COMPOSE_PROFILES=workingtree`
+- `WORKSPACE_ROOT=/absolute/path/to/your/project`
+
+**Windows note**: `WORKSPACE_ROOT` must be a Docker-mountable absolute path. Depending on your Docker Desktop setup, either `C:\\path\\to\\project` or `/c/path/to/project` may work.
+
+3. Start services:
+
+```bash
+docker compose up -d
+```
+
+4. Monitor indexing:
+
+```bash
+docker compose logs -f zoekt-indexer
+```
+
+---
+
+### Option B: GitHub Mirror Mode (one or more orgs)
+
+#### 1. Create GitHub Token
 
 Create a GitHub Personal Access Token with `repo` scope:
 1. Go to https://github.com/settings/tokens
@@ -27,27 +65,28 @@ echo "ghp_your_token_here" > config/github-token.txt
 
 **Important**: Never commit this file. It's already in `.gitignore`.
 
-### 3. Configure Organization
+#### 3. Configure Organization(s)
 
-Set `GITHUB_ORG` (source of truth for `docker-compose.yml`):
+Set one of the following in `.env`:
 
-```bash
-echo "GITHUB_ORG=your-org-name" > .env
-```
-
-Or export it in your shell before running compose:
+- `GITHUB_ORGS=org-a,org-b` *(preferred; supports multiple orgs)*
+- `GITHUB_ORG=your-org-name` *(legacy single-org; backward compatible)*
 
 ```bash
-export GITHUB_ORG=your-org-name
+cp .env.example .env
 ```
 
-### 4. Start Services
+Also set:
+
+- `COMPOSE_PROFILES=github`
+
+#### 4. Start Services
 
 ```bash
 docker compose up -d
 ```
 
-### 5. Monitor Indexing
+#### 5. Monitor Indexing
 
 ```bash
 docker compose logs -f zoekt-sync
@@ -55,17 +94,36 @@ docker compose logs -f zoekt-sync
 
 Initial indexing may take 10-60 minutes depending on the number and size of repositories.
 
-### 6. Verify
+#### 6. Verify
 
 ```bash
 curl -s -X POST -d '{"Q":"type:repo"}' http://localhost:6070/api/search | jq '.Result.Files[].Repository' | sort -u
+```
+
+---
+
+### Option C: Dual-Mode (workingtree + github)
+
+Set both configurations in `.env` and enable both profiles:
+
+```bash
+# .env
+COMPOSE_PROFILES=workingtree,github
+WORKSPACE_ROOT=/absolute/path/to/your/project
+GITHUB_ORGS=org-a,org-b
+```
+
+Then:
+
+```bash
+docker compose up -d
 ```
 
 ## Configuration Reference
 
 ### Note on mirror-config.json
 
-`docker-compose.yml` currently mirrors a single GitHub organization using `GITHUB_ORG`.
+`docker-compose.yml` mirrors one or more GitHub organizations using `GITHUB_ORGS` (or legacy `GITHUB_ORG`).
 
 `config/mirror-config.json` is not consumed by this local compose stack. If you need
 advanced multi-org scheduling/configuration, use the production workflow documented in
@@ -73,11 +131,20 @@ advanced multi-org scheduling/configuration, use the production workflow documen
 
 ## Environment Variables
 
-### zoekt-sync
+### zoekt-sync (profile: github)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `GITHUB_ORGS` | *(none)* | Comma-separated org list (preferred) |
+| `GITHUB_ORG` | *(none)* | Legacy single org (fallback if `GITHUB_ORGS` unset) |
 | `SYNC_INTERVAL` | `3600` | Seconds between sync cycles |
+
+### zoekt-indexer (profile: workingtree)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WORKSPACE_ROOT` | *(none)* | Absolute host path to index (required) |
+| `INDEX_INTERVAL` | `60` | Seconds between re-index cycles |
 
 To change the sync interval:
 
@@ -109,8 +176,9 @@ curl -s -X POST -d '{"Q":"type:repo"}' http://localhost:6070/api/search | jq '[.
 ### Force Re-index
 
 ```bash
-# Restart sync service to trigger immediate mirror+index cycle
-docker compose restart zoekt-sync
+# Restart the relevant service to trigger an immediate cycle
+docker compose restart zoekt-sync       # github
+docker compose restart zoekt-indexer    # workingtree
 ```
 
 ### Clear All Data

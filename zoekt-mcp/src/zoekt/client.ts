@@ -198,14 +198,16 @@ export class ZoektClient {
   async getFileContent(
     repository: string,
     path: string,
-    branch: string = 'HEAD'
+    branch?: string
   ): Promise<string> {
     const params = new URLSearchParams({
       r: repository,
       f: path,
-      b: branch,
       format: 'raw',
     });
+    if (branch) {
+      params.append('b', branch);
+    }
 
     const url = `${this.baseUrl}/print?${params.toString()}`;
     

@@ -98,7 +98,7 @@ export function extractDefinitions(fileMatches: FileMatch[]): ReferenceResult[] 
           continue;
         }
         
-        const range = chunk.Ranges[i];
+        const range = chunk.Ranges?.[i];
         const lineNumber = range?.Start?.LineNumber ?? chunk.ContentStart.LineNumber;
         const column = range?.Start?.Column ?? chunk.ContentStart.Column;
         
@@ -149,7 +149,7 @@ export function extractUsages(fileMatches: FileMatch[]): ReferenceResult[] {
       for (const chunk of fileMatch.ChunkMatches) {
         const context = decodeBase64(chunk.Content);
         const lineNumber = chunk.ContentStart.LineNumber;
-        const column = chunk.Ranges[0]?.Start?.Column ?? chunk.ContentStart.Column;
+        const column = chunk.Ranges?.[0]?.Start?.Column ?? chunk.ContentStart.Column;
         
         usages.push({
           type: 'usage',

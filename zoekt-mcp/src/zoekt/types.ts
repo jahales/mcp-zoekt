@@ -32,7 +32,7 @@ export interface FileMatch {
   Repository?: string;
   Repo?: string;  // Alternative field name used by newer API
   FileName: string;
-  Branches: string[];
+  Branches?: string[];
   Language: string;
   ChunkMatches?: ChunkMatch[];
   // Legacy format
@@ -42,7 +42,7 @@ export interface FileMatch {
 export interface ChunkMatch {
   Content: string;  // Base64 encoded
   ContentStart: ContentPosition;
-  Ranges: MatchRange[];
+  Ranges?: MatchRange[];
   FileName: boolean;
   SymbolInfo?: (SymbolInfo | null)[];  // Array aligned with Ranges
 }
@@ -181,7 +181,7 @@ export interface FileContentResponse {
   content: string;
   repository: string;
   path: string;
-  branch: string;
+  branch?: string;
 }
 
 // Symbol types (from ctags integration)
