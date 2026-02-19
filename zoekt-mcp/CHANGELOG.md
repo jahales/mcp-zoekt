@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.6](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.2.5...mcp-zoekt-v2.2.6) (2026-02-19)
+
+
+### Bug Fixes
+
+* **zoekt-mcp:** clarify quick start logging step ([#33](https://github.com/jahales/mcp-zoekt/issues/33)) ([aba4852](https://github.com/jahales/mcp-zoekt/commit/aba4852439144106ba9a003daf860ab65017b7ed))
+
 ## [2.2.5](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.2.4...mcp-zoekt-v2.2.5) (2026-02-18)
 
 
