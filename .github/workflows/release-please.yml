@@ -82,10 +82,20 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          # Trusted Publishing (OIDC) requires Node 22.14.0+.
+          node-version: '22.14.0'
           cache: 'npm'
           cache-dependency-path: zoekt-mcp/package-lock.json
           registry-url: 'https://registry.npmjs.org'
+
+      - name: Ensure npm supports trusted publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          npm install -g npm@^11.5.1
+          npm --version
 
       - name: Install dependencies
         working-directory: zoekt-mcp
@@ -94,16 +104,6 @@ jobs:
       - name: Build
         working-directory: zoekt-mcp
         run: npm run build
-
-      - name: Configure npmjs registry (no token)
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat > "$RUNNER_TEMP/npmrc" <<'EOF'
-          registry=https://registry.npmjs.org/
-          always-auth=false
-          EOF
-          echo "NPM_CONFIG_USERCONFIG=$RUNNER_TEMP/npmrc" >> "$GITHUB_ENV"
 
       - name: Publish to npmjs
         working-directory: zoekt-mcp
