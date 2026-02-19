@@ -61,6 +61,7 @@ This MCP server requires a running Zoekt infrastructure. See the `docker/` direc
 
 2. Wait for initial indexing (check logs):
    ```bash
+  cd ../docker
   docker compose logs -f
    ```
 
