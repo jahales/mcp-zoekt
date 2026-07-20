@@ -56,10 +56,22 @@ services:
           org=$$(echo "$$org" | tr -d '[:space:]')
           if [ -n "$$org" ]; then
             echo "Mirroring org: $$org"
+            # zoekt-mirror-github only CLONES repos that are missing; it does not
+            # update existing clones. Clone new repos first...
             if ! zoekt-mirror-github -dest /data/repos -org "$$org" -token /config/github-token.txt -no_archived; then
               echo "ERROR: mirror failed for org $$org (check token/network)" >&2
               rc=1
+              IFS=','
+              continue
             fi
+            # ...then fetch updates into every existing bare clone so re-indexing
+            # sees new commits (auth via the insteadOf token config above).
+            echo "Fetching updates for existing $$org clones..."
+            for repo in /data/repos/github.com/$$org/*.git; do
+              [ -d "$$repo" ] || continue
+              git --git-dir="$$repo" fetch --prune --quiet origin "+refs/heads/*:refs/heads/*" \
+                || echo "WARN: fetch failed for $$repo" >&2
+            done
           fi
           IFS=','
         done
