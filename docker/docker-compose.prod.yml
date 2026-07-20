@@ -26,7 +26,7 @@ services:
       - zoekt
 
   # GitHub mirror - clones/updates repos from GitHub
-  # Runs on schedule via cron container
+  # Run on demand, or nightly via host cron (see update-index.sh / deploy.sh)
   zoekt-mirror:
     image: zoekt:local
     container_name: zoekt-mirror
