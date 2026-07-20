@@ -13,6 +13,7 @@ import { createSearchSymbolsHandler } from './tools/search-symbols.js';
 import { createSearchFilesHandler } from './tools/search-files.js';
 import { createFindReferencesHandler } from './tools/find-references.js';
 import { createGetHealthHandler } from './tools/get-health.js';
+import { VERSION } from './version.js';
 
 /**
  * Create and configure the MCP server with all tools
@@ -23,7 +24,7 @@ export function createMcpServer(
 ): McpServer {
   const server = new McpServer({
     name: 'zoekt-mcp',
-    version: '1.0.0',
+    version: VERSION,
   });
 
   const zoektClient = new ZoektClient(config.zoektUrl, config.timeoutMs);
@@ -482,39 +483,51 @@ function decodeBase64(encoded: string): string {
   }
 }
 
+/** Handle to a running server, used for graceful shutdown */
+export interface RunningServer {
+  close(): Promise<void>;
+}
+
 /**
- * Start the MCP server with the configured transport
+ * Start the MCP server with the configured transport.
+ *
+ * Takes a factory rather than a server instance because the SDK's Protocol
+ * supports exactly one transport per server: the HTTP/SSE transport needs a
+ * fresh McpServer per client connection.
  */
 export async function startServer(
-  server: McpServer,
+  serverFactory: () => McpServer,
   config: McpServerConfig,
   logger: Logger
-): Promise<void> {
+): Promise<RunningServer> {
   if (config.transport === 'stdio') {
+    const server = serverFactory();
     const transport = new StdioServerTransport();
     await server.connect(transport);
     logger.info({ transport: 'stdio' }, 'MCP server started');
-  } else {
-    // HTTP/SSE transport for remote access
-    await startHttpServer(server, config, logger);
+    return { close: (): Promise<void> => server.close() };
   }
+  // HTTP/SSE transport for remote access
+  return startHttpServer(serverFactory, config, logger);
 }
 
 /**
  * Start HTTP server with SSE transport for remote MCP access
  */
 async function startHttpServer(
-  server: McpServer,
+  serverFactory: () => McpServer,
   config: McpServerConfig,
   logger: Logger
-): Promise<void> {
+): Promise<RunningServer> {
   const host = config.host ?? '0.0.0.0';
   const port = config.port ?? 3001;
 
   const httpLogger = logger.child({ module: 'http' });
 
-  // Track active SSE transports per session
-  const transports = new Map<string, SSEServerTransport>();
+  // Track active sessions. Each SSE connection gets its own McpServer because
+  // the SDK's Protocol binds to a single transport; sharing one instance would
+  // silently detach earlier clients whenever a new one connects.
+  const sessions = new Map<string, { transport: SSEServerTransport; server: McpServer }>();
 
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     // Do not trust the Host header for URL parsing; we only need path + query.
@@ -570,46 +583,57 @@ async function startHttpServer(
 
     // Health check endpoint
     if (url.pathname === '/health' && req.method === 'GET') {
-      reqLogger.debug({ sessions: transports.size }, 'health check');
+      reqLogger.debug({ sessions: sessions.size }, 'health check');
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', transport: 'http', sessions: transports.size }));
+      res.end(JSON.stringify({ status: 'ok', transport: 'http', sessions: sessions.size }));
       return;
     }
 
     // SSE endpoint - client connects here for server-sent events
     if (url.pathname === '/sse' && req.method === 'GET') {
       const transport = new SSEServerTransport('/messages', res);
-      const sessionId = randomUUID();
+      // Use the transport's own session id: it is the one the client is told
+      // to send back as ?sessionId= on /messages posts.
+      const sessionId = transport.sessionId;
+      const sessionServer = serverFactory();
       const sseLogger = reqLogger.child({ sessionId });
-      transports.set(sessionId, transport);
+      sessions.set(sessionId, { transport, server: sessionServer });
 
       sseLogger.info('sse connection opened');
 
       // Clean up on close
       res.on('close', () => {
         sseLogger.info('sse connection closed');
-        transports.delete(sessionId);
+        sessions.delete(sessionId);
+        sessionServer.close().catch((err: unknown) => {
+          sseLogger.warn({ err }, 'error closing session server');
+        });
       });
 
-      await server.connect(transport);
+      await sessionServer.connect(transport);
       return;
     }
 
     // Messages endpoint - client posts JSON-RPC messages here
     if (url.pathname === '/messages' && req.method === 'POST') {
-      // Find the transport from the last SSE connection
-      // In production, you'd use session IDs from headers/query params
-      const lastSession = Array.from(transports.entries()).pop();
-      const sessionId = lastSession?.[0];
-      const transport = lastSession?.[1];
-      
-      if (!transport) {
+      // The SSE endpoint event directs clients to POST to /messages?sessionId=<id>
+      const sessionId = url.searchParams.get('sessionId');
+
+      if (!sessionId) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'No active SSE connection' }));
+        res.end(JSON.stringify({ error: 'Missing sessionId query parameter' }));
         return;
       }
 
-      const sseLogger = sessionId ? reqLogger.child({ sessionId }) : reqLogger;
+      const session = sessions.get(sessionId);
+      if (!session) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `No active SSE session for sessionId ${sessionId}` }));
+        return;
+      }
+
+      const transport = session.transport;
+      const sseLogger = reqLogger.child({ sessionId });
 
       // Collect body
       const chunks: Buffer[] = [];
@@ -642,7 +666,17 @@ async function startHttpServer(
     httpServer.on('error', reject);
     httpServer.listen(port, host, () => {
       logger.info({ transport: 'http', host, port, url: `http://${host}:${port}` }, 'MCP HTTP server started');
-      resolve();
+      resolve({
+        close: async (): Promise<void> => {
+          for (const { server: sessionServer } of sessions.values()) {
+            await sessionServer.close();
+          }
+          sessions.clear();
+          await new Promise<void>((closeResolve, closeReject) => {
+            httpServer.close((err) => (err ? closeReject(err) : closeResolve()));
+          });
+        },
+      });
     });
   });
 }
