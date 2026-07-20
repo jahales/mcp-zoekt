@@ -48,6 +48,9 @@ describe('ZoektClient', () => {
       expect(callBody.Q).toBe('test query');
       expect(callBody.Opts.MaxDocDisplayCount).toBe(30);
       expect(callBody.Opts.NumContextLines).toBe(3);
+      // Regression guard: SymbolInfo (needed by search_symbols / find_references)
+      // is only returned on ChunkMatches, so the request must ask for them.
+      expect(callBody.Opts.ChunkMatches).toBe(true);
     });
 
     it('should throw ZoektError when backend is unavailable', async () => {
