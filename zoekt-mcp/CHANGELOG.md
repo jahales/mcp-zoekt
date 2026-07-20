@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.3.0...mcp-zoekt-v2.4.0) (2026-07-20)
+
+
+### Features
+
+* **docker:** install MCP server from published npm release ([4b3d5c6](https://github.com/jahales/mcp-zoekt/commit/4b3d5c69826d610b70043e71b0988a98550eb525))
+
 ## [2.3.0](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.2.7...mcp-zoekt-v2.3.0) (2026-07-20)
 
 
