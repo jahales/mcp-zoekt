@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.7](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.2.6...mcp-zoekt-v2.2.7) (2026-07-20)
+
+
+### Bug Fixes
+
+* **client:** request ChunkMatches so symbol search returns results ([#35](https://github.com/jahales/mcp-zoekt/issues/35)) ([dc17dc6](https://github.com/jahales/mcp-zoekt/commit/dc17dc664fea25e22d93f04656d62f433bcc33f5))
+
 ## [2.2.6](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.2.5...mcp-zoekt-v2.2.6) (2026-02-19)
 
 
