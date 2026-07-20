@@ -147,18 +147,37 @@ export function extractUsages(fileMatches: FileMatch[]): ReferenceResult[] {
     // Handle ChunkMatches (newer format)
     if (fileMatch.ChunkMatches) {
       for (const chunk of fileMatch.ChunkMatches) {
+        // Filename matches aren't code usages
+        if (chunk.FileName) {
+          continue;
+        }
+
         const context = decodeBase64(chunk.Content);
-        const lineNumber = chunk.ContentStart.LineNumber;
-        const column = chunk.Ranges?.[0]?.Start?.Column ?? chunk.ContentStart.Column;
-        
-        usages.push({
-          type: 'usage',
-          file: fileName,
-          repository,
-          line: lineNumber,
-          column,
-          context: context.trim(),
-        });
+
+        // Report one usage per match range, at the range's own line: the chunk
+        // starts contextLines above the first match, so ContentStart.LineNumber
+        // points at context, not at the matched code.
+        if (chunk.Ranges && chunk.Ranges.length > 0) {
+          for (const range of chunk.Ranges) {
+            usages.push({
+              type: 'usage',
+              file: fileName,
+              repository,
+              line: range.Start.LineNumber,
+              column: range.Start.Column,
+              context: context.trim(),
+            });
+          }
+        } else {
+          usages.push({
+            type: 'usage',
+            file: fileName,
+            repository,
+            line: chunk.ContentStart.LineNumber,
+            column: chunk.ContentStart.Column,
+            context: context.trim(),
+          });
+        }
       }
     }
     
@@ -334,14 +353,13 @@ export function createFindReferencesHandler(
       // Deduplicate: remove definition locations from usages
       const usages = deduplicateReferences(definitions, rawUsages);
       
-      // Apply pagination to combined results
+      // Apply pagination to the combined list (definitions first, then usages)
+      // so every page window advances through both sections.
       const allRefs = [...definitions, ...usages];
-      const paginatedDefs = definitions.slice(offset, offset + Math.min(limit, definitions.length));
-      const remainingLimit = limit - paginatedDefs.length;
-      const paginatedUsages = remainingLimit > 0 
-        ? usages.slice(0, remainingLimit)
-        : [];
-      
+      const pageRefs = allRefs.slice(offset, offset + limit);
+      const paginatedDefs = pageRefs.filter((ref) => ref.type === 'definition');
+      const paginatedUsages = pageRefs.filter((ref) => ref.type === 'usage');
+
       const hasMore = allRefs.length > offset + limit;
       
       const stats = { durationMs: duration };

@@ -384,5 +384,66 @@ describe('find_references tool', () => {
       const totalRefs = defMatches.length + usageMatches.length;
       expect(totalRefs).toBe(10);
     });
+
+    it('advances through usages on subsequent pages (no repeats)', async () => {
+      // 2 definitions + 6 usages, limit 4:
+      // page 1 = 2 defs + usages 0-1, page 2 = usages 2-5.
+      const defResult = {
+        result: {
+          FileMatches: Array(2).fill(null).map((_, i) => ({
+            Repository: 'github.com/org/repo',
+            FileName: `src/def${i}.ts`,
+            Branches: ['main'],
+            Language: 'TypeScript',
+            ChunkMatches: [{
+              Content: Buffer.from('function handleRequest() {').toString('base64'),
+              ContentStart: { ByteOffset: 0, LineNumber: i + 1, Column: 1 },
+              Ranges: [{ Start: { ByteOffset: 9, LineNumber: i + 1, Column: 10 }, End: { ByteOffset: 22, LineNumber: i + 1, Column: 23 } }],
+              FileName: false,
+              SymbolInfo: [{ Sym: 'handleRequest', Kind: 'function', Parent: '', ParentKind: '' }],
+            }],
+          })),
+          Stats: { MatchCount: 2, FileCount: 2, Duration: 5000000 },
+        },
+      };
+      const usageResult = {
+        result: {
+          FileMatches: Array(6).fill(null).map((_, i) => ({
+            Repository: 'github.com/org/repo',
+            FileName: `src/usage${i}.ts`,
+            Branches: ['main'],
+            Language: 'TypeScript',
+            ChunkMatches: [{
+              Content: Buffer.from('handleRequest();').toString('base64'),
+              ContentStart: { ByteOffset: 0, LineNumber: i + 1, Column: 1 },
+              Ranges: [{ Start: { ByteOffset: 0, LineNumber: i + 1, Column: 1 }, End: { ByteOffset: 13, LineNumber: i + 1, Column: 14 } }],
+              FileName: false,
+            }],
+          })),
+          Stats: { MatchCount: 6, FileCount: 6, Duration: 5000000 },
+        },
+      };
+      mockClient.search.mockImplementation((query: string) =>
+        Promise.resolve(query.startsWith('sym:') ? defResult : usageResult)
+      );
+
+      const handler = createFindReferencesHandler(mockClient as unknown as ZoektClient, mockLogger);
+
+      const page1 = await handler({ symbol: 'handleRequest', limit: 4, contextLines: 3 });
+      const text1 = (page1.content[0] as { text: string }).text;
+      expect(text1).toContain('src/usage0.ts');
+      expect(text1).toContain('src/usage1.ts');
+      expect(text1).not.toContain('src/usage2.ts');
+
+      const cursor = text1.match(/Use cursor: `([^`]+)`/)?.[1];
+      expect(cursor).toBeDefined();
+
+      const page2 = await handler({ symbol: 'handleRequest', limit: 4, contextLines: 3, cursor });
+      const text2 = (page2.content[0] as { text: string }).text;
+      expect(text2).not.toContain('src/usage0.ts');
+      expect(text2).not.toContain('src/usage1.ts');
+      expect(text2).toContain('src/usage2.ts');
+      expect(text2).toContain('src/usage5.ts');
+    });
   });
 });
