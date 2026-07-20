@@ -3,7 +3,15 @@
  * 
  * Cursors encode query hash + offset for stateless pagination.
  * They never expire but are only valid for the same query.
- * 
+ *
+ * Because each page re-runs the query and slices by offset (Zoekt exposes no
+ * server-side scroll or offset primitive), stable paging assumes Zoekt returns
+ * a stable total ordering for a given query. When results are tied on score,
+ * a file can occasionally repeat or be skipped across page boundaries. This is
+ * an accepted trade-off: it keeps cursors restart- and instance-independent,
+ * which matters for the multi-session HTTP transport. See the discussion in
+ * the tool handlers before considering stateful snapshots.
+ *
  * ## Public API (for tool handlers)
  * - `validateCursor()` - Validate and decode a cursor
  * - `generateNextCursor()` - Generate cursor for next page

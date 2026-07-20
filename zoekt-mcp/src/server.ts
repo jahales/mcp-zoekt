@@ -7,12 +7,13 @@ import { z } from 'zod';
 import type { McpServerConfig } from './config.js';
 import type { Logger } from './logger.js';
 import { ZoektClient, ZoektError } from './zoekt/client.js';
-import type { FileMatch, SearchStats } from './zoekt/types.js';
 import { formatRepoList, formatEmptyResponse } from './formatting/repoList.js';
+import { createSearchHandler } from './tools/search.js';
 import { createSearchSymbolsHandler } from './tools/search-symbols.js';
 import { createSearchFilesHandler } from './tools/search-files.js';
 import { createFindReferencesHandler } from './tools/find-references.js';
 import { createGetHealthHandler } from './tools/get-health.js';
+import { VERSION } from './version.js';
 
 /**
  * Create and configure the MCP server with all tools
@@ -23,7 +24,7 @@ export function createMcpServer(
 ): McpServer {
   const server = new McpServer({
     name: 'zoekt-mcp',
-    version: '1.0.0',
+    version: VERSION,
   });
 
   const zoektClient = new ZoektClient(config.zoektUrl, config.timeoutMs);
@@ -61,6 +62,8 @@ function registerSearchTool(
   client: ZoektClient,
   logger: Logger
 ): void {
+  const handler = createSearchHandler(client, logger);
+
   server.tool(
     'search',
     'Search code across indexed repositories using Zoekt query syntax',
@@ -74,42 +77,12 @@ function registerSearchTool(
       contextLines: z.number().int().min(0).max(10).default(3).describe(
         'Number of context lines to include around each match'
       ),
+      cursor: z.string().optional().describe(
+        'Pagination cursor from previous response'
+      ),
     },
-    async ({ query, limit, contextLines }) => {
-      const startTime = Date.now();
-      logger.info({ query, limit, contextLines }, 'search request');
-
-      try {
-        const response = await client.search(query, { limit, contextLines });
-        const duration = Date.now() - startTime;
-
-        const fileMatches = response.result?.FileMatches ?? [];
-        const stats = response.result?.Stats;
-
-        logger.info(
-          { query, duration, matchCount: stats?.MatchCount ?? 0, fileCount: fileMatches.length },
-          'search complete'
-        );
-
-        if (fileMatches.length === 0) {
-          return {
-            content: [{ type: 'text' as const, text: `## Results for: \`${query}\`\n\nNo matches found.` }],
-          };
-        }
-
-        const formattedResults = formatSearchResults(query, fileMatches, stats);
-        return {
-          content: [{ type: 'text' as const, text: formattedResults }],
-        };
-      } catch (error) {
-        const duration = Date.now() - startTime;
-        logger.error({ query, duration, err: error }, 'search error');
-
-        return {
-          content: [{ type: 'text' as const, text: formatError(error) }],
-          isError: true,
-        };
-      }
+    async ({ query, limit, contextLines, cursor }) => {
+      return handler({ query, limit, contextLines, cursor });
     }
   );
 }
@@ -348,52 +321,7 @@ function registerGetHealthTool(
   );
 }
 
-/**
- * Format search results as readable text
- */
-function formatSearchResults(
-  query: string,
-  fileMatches: FileMatch[],
-  stats?: SearchStats
-): string {
-  let output = `## Results for: \`${query}\`\n\n`;
-
-  for (const match of fileMatches) {
-    const repoName = match.Repo ?? match.Repository ?? 'Unknown';
-    output += `### ${repoName} - ${match.FileName}\n`;
-    output += `Language: ${match.Language || 'Unknown'} | Branch: ${match.Branches?.[0] || 'HEAD'}\n\n`;
-
-    // Handle ChunkMatches (newer format)
-    if (match.ChunkMatches && match.ChunkMatches.length > 0) {
-      for (const chunk of match.ChunkMatches) {
-        const content = decodeBase64(chunk.Content);
-        const startLine = chunk.ContentStart.LineNumber;
-        output += `\`\`\`${match.Language?.toLowerCase() || ''}\n`;
-        output += content;
-        output += `\`\`\`\n`;
-        output += `Line ${startLine}\n\n`;
-      }
-    }
-    // Handle LineMatches (older format)
-    else if (match.LineMatches && match.LineMatches.length > 0) {
-      for (const line of match.LineMatches) {
-        const content = decodeBase64(line.Line);
-        output += `Line ${line.LineNumber}: ${content.trim()}\n`;
-      }
-      output += '\n';
-    }
-
-    output += '---\n\n';
-  }
-
-  if (stats) {
-    const durationMs = stats.Duration / 1_000_000; // nanoseconds to ms
-    output += `Stats: ${stats.MatchCount} matches in ${stats.FileCount} files (${durationMs.toFixed(0)}ms)\n`;
-  }
-
-  return output;
-}
-
+// formatSearchResults and decodeBase64 now live in './tools/search.js'.
 // formatRepoList, formatBytesCompact, and formatEmptyResponse are imported from './formatting/repoList.js'
 
 /**
@@ -471,50 +399,51 @@ function detectLanguage(path: string): string {
   return languageMap[ext ?? ''] ?? '';
 }
 
-/**
- * Decode base64 content from Zoekt response
- */
-function decodeBase64(encoded: string): string {
-  try {
-    return Buffer.from(encoded, 'base64').toString('utf-8');
-  } catch {
-    return encoded; // Return as-is if not base64
-  }
+/** Handle to a running server, used for graceful shutdown */
+export interface RunningServer {
+  close(): Promise<void>;
 }
 
 /**
- * Start the MCP server with the configured transport
+ * Start the MCP server with the configured transport.
+ *
+ * Takes a factory rather than a server instance because the SDK's Protocol
+ * supports exactly one transport per server: the HTTP/SSE transport needs a
+ * fresh McpServer per client connection.
  */
 export async function startServer(
-  server: McpServer,
+  serverFactory: () => McpServer,
   config: McpServerConfig,
   logger: Logger
-): Promise<void> {
+): Promise<RunningServer> {
   if (config.transport === 'stdio') {
+    const server = serverFactory();
     const transport = new StdioServerTransport();
     await server.connect(transport);
     logger.info({ transport: 'stdio' }, 'MCP server started');
-  } else {
-    // HTTP/SSE transport for remote access
-    await startHttpServer(server, config, logger);
+    return { close: (): Promise<void> => server.close() };
   }
+  // HTTP/SSE transport for remote access
+  return startHttpServer(serverFactory, config, logger);
 }
 
 /**
  * Start HTTP server with SSE transport for remote MCP access
  */
 async function startHttpServer(
-  server: McpServer,
+  serverFactory: () => McpServer,
   config: McpServerConfig,
   logger: Logger
-): Promise<void> {
+): Promise<RunningServer> {
   const host = config.host ?? '0.0.0.0';
   const port = config.port ?? 3001;
 
   const httpLogger = logger.child({ module: 'http' });
 
-  // Track active SSE transports per session
-  const transports = new Map<string, SSEServerTransport>();
+  // Track active sessions. Each SSE connection gets its own McpServer because
+  // the SDK's Protocol binds to a single transport; sharing one instance would
+  // silently detach earlier clients whenever a new one connects.
+  const sessions = new Map<string, { transport: SSEServerTransport; server: McpServer }>();
 
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     // Do not trust the Host header for URL parsing; we only need path + query.
@@ -570,46 +499,57 @@ async function startHttpServer(
 
     // Health check endpoint
     if (url.pathname === '/health' && req.method === 'GET') {
-      reqLogger.debug({ sessions: transports.size }, 'health check');
+      reqLogger.debug({ sessions: sessions.size }, 'health check');
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', transport: 'http', sessions: transports.size }));
+      res.end(JSON.stringify({ status: 'ok', transport: 'http', sessions: sessions.size }));
       return;
     }
 
     // SSE endpoint - client connects here for server-sent events
     if (url.pathname === '/sse' && req.method === 'GET') {
       const transport = new SSEServerTransport('/messages', res);
-      const sessionId = randomUUID();
+      // Use the transport's own session id: it is the one the client is told
+      // to send back as ?sessionId= on /messages posts.
+      const sessionId = transport.sessionId;
+      const sessionServer = serverFactory();
       const sseLogger = reqLogger.child({ sessionId });
-      transports.set(sessionId, transport);
+      sessions.set(sessionId, { transport, server: sessionServer });
 
       sseLogger.info('sse connection opened');
 
       // Clean up on close
       res.on('close', () => {
         sseLogger.info('sse connection closed');
-        transports.delete(sessionId);
+        sessions.delete(sessionId);
+        sessionServer.close().catch((err: unknown) => {
+          sseLogger.warn({ err }, 'error closing session server');
+        });
       });
 
-      await server.connect(transport);
+      await sessionServer.connect(transport);
       return;
     }
 
     // Messages endpoint - client posts JSON-RPC messages here
     if (url.pathname === '/messages' && req.method === 'POST') {
-      // Find the transport from the last SSE connection
-      // In production, you'd use session IDs from headers/query params
-      const lastSession = Array.from(transports.entries()).pop();
-      const sessionId = lastSession?.[0];
-      const transport = lastSession?.[1];
-      
-      if (!transport) {
+      // The SSE endpoint event directs clients to POST to /messages?sessionId=<id>
+      const sessionId = url.searchParams.get('sessionId');
+
+      if (!sessionId) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'No active SSE connection' }));
+        res.end(JSON.stringify({ error: 'Missing sessionId query parameter' }));
         return;
       }
 
-      const sseLogger = sessionId ? reqLogger.child({ sessionId }) : reqLogger;
+      const session = sessions.get(sessionId);
+      if (!session) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `No active SSE session for sessionId ${sessionId}` }));
+        return;
+      }
+
+      const transport = session.transport;
+      const sseLogger = reqLogger.child({ sessionId });
 
       // Collect body
       const chunks: Buffer[] = [];
@@ -642,7 +582,17 @@ async function startHttpServer(
     httpServer.on('error', reject);
     httpServer.listen(port, host, () => {
       logger.info({ transport: 'http', host, port, url: `http://${host}:${port}` }, 'MCP HTTP server started');
-      resolve();
+      resolve({
+        close: async (): Promise<void> => {
+          for (const { server: sessionServer } of sessions.values()) {
+            await sessionServer.close();
+          }
+          sessions.clear();
+          await new Promise<void>((closeResolve, closeReject) => {
+            httpServer.close((err) => (err ? closeReject(err) : closeResolve()));
+          });
+        },
+      });
     });
   });
 }

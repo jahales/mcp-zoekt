@@ -8,9 +8,10 @@
 import type { ZoektClient } from '../zoekt/client.js';
 import type { Logger } from '../logger.js';
 import type { HealthState, HealthStatus, IndexStats } from '../zoekt/types.js';
+import { VERSION } from '../version.js';
 
 /** Server version */
-const SERVER_VERSION = '1.0.0';
+const SERVER_VERSION = VERSION;
 
 /**
  * Build HealthStatus from check results

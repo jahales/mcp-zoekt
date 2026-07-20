@@ -27,8 +27,8 @@ const DEFAULT_LIMIT = 30;
 export function wrapFilenameQuery(query: string): string {
   const trimmedQuery = query.trim();
   
-  // Already has type:filename or type:file anywhere - return as is
-  if (trimmedQuery.includes('type:filename') || trimmedQuery.includes('type:file ')) {
+  // Already has a type:filename or type:file atom anywhere - return as is
+  if (/(^|\s)type:(filename|file)(\s|$)/.test(trimmedQuery)) {
     return trimmedQuery;
   }
   

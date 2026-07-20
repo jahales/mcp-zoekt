@@ -3,6 +3,7 @@
 import { loadConfig } from './config.js';
 import { createLogger } from './logger.js';
 import { createMcpServer, startServer } from './server.js';
+import { VERSION } from './version.js';
 
 async function main(): Promise<void> {
   // Parse arguments (skip node and script path)
@@ -16,7 +17,7 @@ async function main(): Promise<void> {
 
   // Handle --version
   if (args.includes('--version') || args.includes('-v')) {
-    console.log('zoekt-mcp v1.0.0');
+    console.log(`zoekt-mcp v${VERSION}`);
     process.exit(0);
   }
 
@@ -28,21 +29,19 @@ async function main(): Promise<void> {
     const logger = createLogger(config.logLevel);
     logger.debug({ config }, 'Configuration loaded');
 
-    // Create and start server
-    const server = createMcpServer(config, logger);
-    
+    // Start the server. A factory is passed because the HTTP/SSE transport
+    // needs a fresh McpServer per client connection.
+    const running = await startServer(() => createMcpServer(config, logger), config, logger);
+
     // Handle graceful shutdown
     const shutdown = async (): Promise<void> => {
       logger.info('Shutting down...');
-      await server.close();
+      await running.close();
       process.exit(0);
     };
 
     process.on('SIGTERM', shutdown);
     process.on('SIGINT', shutdown);
-
-    // Start the server
-    await startServer(server, config, logger);
   } catch (error) {
     console.error('Failed to start server:', error instanceof Error ? error.message : error);
     process.exit(1);
@@ -61,7 +60,7 @@ OPTIONS:
                         Can also use ZOEKT_URL environment variable
   
   --transport <type>    Transport type: 'stdio' or 'http' (default: stdio)
-  --port <port>         HTTP server port (default: 3000, only for http transport)
+  --port <port>         HTTP server port (default: 3001, only for http transport)
   --host <host>         HTTP server host (default: 0.0.0.0, only for http transport)
   
   --log-level <level>   Log level: debug, info, warn, error (default: info)
@@ -86,9 +85,13 @@ EXAMPLES:
   ZOEKT_URL=http://zoekt-webserver:6070 MCP_TRANSPORT=http MCP_PORT=3001 zoekt-mcp
 
 AVAILABLE TOOLS:
-  search        Search code across indexed repositories
-  list_repos    List all indexed repositories
-  file_content  Retrieve file contents from a repository
+  search           Search code across indexed repositories
+  search_symbols   Search for symbol definitions (functions, classes, methods)
+  search_files     Search for files by filename pattern
+  find_references  Find definitions and usages of a symbol
+  list_repos       List all indexed repositories
+  file_content     Retrieve file contents from a repository
+  get_health       Check MCP server and Zoekt backend health
 `);
 }
 
