@@ -166,6 +166,91 @@ describe('find_references tool', () => {
       expect(usages[0]?.line).toBe(10);
       expect(usages[1]?.line).toBe(20);
     });
+
+    it('reports the match range line, not the chunk content start', () => {
+      // Chunk starts at line 7 (context) but the match is on line 10.
+      const fileMatches = [{
+        Repository: 'github.com/org/repo',
+        FileName: 'src/api.ts',
+        Branches: ['main'],
+        Language: 'TypeScript',
+        ChunkMatches: [{
+          Content: Buffer.from('// ctx\n// ctx\n// ctx\nhandleRequest();').toString('base64'),
+          ContentStart: { ByteOffset: 0, LineNumber: 7, Column: 1 },
+          Ranges: [{ Start: { ByteOffset: 21, LineNumber: 10, Column: 1 }, End: { ByteOffset: 34, LineNumber: 10, Column: 14 } }],
+          FileName: false,
+        }],
+      }];
+
+      const usages = extractUsages(fileMatches);
+
+      expect(usages).toHaveLength(1);
+      expect(usages[0]?.line).toBe(10);
+      expect(usages[0]?.column).toBe(1);
+    });
+
+    it('skips filename-match chunks', () => {
+      const fileMatches = [{
+        Repository: 'github.com/org/repo',
+        FileName: 'src/handleRequest.ts',
+        Branches: ['main'],
+        Language: 'TypeScript',
+        ChunkMatches: [{
+          Content: Buffer.from('src/handleRequest.ts').toString('base64'),
+          ContentStart: { ByteOffset: 0, LineNumber: 0, Column: 1 },
+          Ranges: [{ Start: { ByteOffset: 0, LineNumber: 0, Column: 1 }, End: { ByteOffset: 13, LineNumber: 0, Column: 14 } }],
+          FileName: true,
+        }],
+      }];
+
+      expect(extractUsages(fileMatches)).toHaveLength(0);
+    });
+
+    it('collapses multiple ranges on the same line into one usage', () => {
+      // `handleRequest(); handleRequest();` -> two ranges, same line.
+      const fileMatches = [{
+        Repository: 'github.com/org/repo',
+        FileName: 'src/api.ts',
+        Branches: ['main'],
+        Language: 'TypeScript',
+        ChunkMatches: [{
+          Content: Buffer.from('handleRequest(); handleRequest();').toString('base64'),
+          ContentStart: { ByteOffset: 0, LineNumber: 5, Column: 1 },
+          Ranges: [
+            { Start: { ByteOffset: 0, LineNumber: 5, Column: 1 }, End: { ByteOffset: 13, LineNumber: 5, Column: 14 } },
+            { Start: { ByteOffset: 17, LineNumber: 5, Column: 18 }, End: { ByteOffset: 30, LineNumber: 5, Column: 31 } },
+          ],
+          FileName: false,
+        }],
+      }];
+
+      const usages = extractUsages(fileMatches);
+
+      expect(usages).toHaveLength(1);
+      expect(usages[0]?.line).toBe(5);
+    });
+
+    it('keeps distinct usages for ranges on different lines within a chunk', () => {
+      const fileMatches = [{
+        Repository: 'github.com/org/repo',
+        FileName: 'src/api.ts',
+        Branches: ['main'],
+        Language: 'TypeScript',
+        ChunkMatches: [{
+          Content: Buffer.from('handleRequest();\nother();\nhandleRequest();').toString('base64'),
+          ContentStart: { ByteOffset: 0, LineNumber: 5, Column: 1 },
+          Ranges: [
+            { Start: { ByteOffset: 0, LineNumber: 5, Column: 1 }, End: { ByteOffset: 13, LineNumber: 5, Column: 14 } },
+            { Start: { ByteOffset: 26, LineNumber: 7, Column: 1 }, End: { ByteOffset: 39, LineNumber: 7, Column: 14 } },
+          ],
+          FileName: false,
+        }],
+      }];
+
+      const usages = extractUsages(fileMatches);
+
+      expect(usages.map(u => u.line)).toEqual([5, 7]);
+    });
   });
 
   describe('deduplicateReferences', () => {
