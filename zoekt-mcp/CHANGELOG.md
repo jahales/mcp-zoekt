@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.3.0](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.2.7...mcp-zoekt-v2.3.0) (2026-07-20)
+
+
+### Features
+
+* search pagination + HTTP session routing, pagination & version fixes ([ad860fc](https://github.com/jahales/mcp-zoekt/commit/ad860fc6f96faede39a5f115d10de9da5b7029e9))
+
+
+### Bug Fixes
+
+* dedupe same-line usages + guard double-close; add HTTP/version/find_references tests ([01023f8](https://github.com/jahales/mcp-zoekt/commit/01023f82c3dc52fe86ae92f8a55c97107d340b35))
+
 ## [2.2.7](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.2.6...mcp-zoekt-v2.2.7) (2026-07-20)
 
 
