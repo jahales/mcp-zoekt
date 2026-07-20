@@ -151,13 +151,12 @@ echo ""
 echo "Building Zoekt image..."
 docker build -t zoekt:local -f Dockerfile.zoekt .
 
-# Build the MCP server image
-echo "Building MCP server image..."
-cd ../zoekt-mcp
-npm ci
-npm run build
-cd "$SCRIPT_DIR"
-docker build -t zoekt-mcp:local -f ../zoekt-mcp/Dockerfile ../zoekt-mcp
+# Build the MCP server image (installs the published @jahales/mcp-zoekt release).
+# Override the version with: MCP_VERSION=2.3.1 ./deploy.sh
+echo "Building MCP server image (@jahales/mcp-zoekt@${MCP_VERSION:-default})..."
+docker build -t zoekt-mcp:local \
+    ${MCP_VERSION:+--build-arg MCP_VERSION="$MCP_VERSION"} \
+    -f ../zoekt-mcp/Dockerfile ../zoekt-mcp
 
 echo ""
 echo "Starting services..."
