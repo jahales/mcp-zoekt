@@ -154,17 +154,25 @@ export function extractUsages(fileMatches: FileMatch[]): ReferenceResult[] {
 
         const context = decodeBase64(chunk.Content);
 
-        // Report one usage per match range, at the range's own line: the chunk
+        // Report one usage per matched line, at the range's own line: the chunk
         // starts contextLines above the first match, so ContentStart.LineNumber
-        // points at context, not at the matched code.
+        // points at context, not at the matched code. A chunk may hold several
+        // ranges; collapse ranges that land on the same line so a line like
+        // `foo(); foo();` is reported once, not once per occurrence.
         if (chunk.Ranges && chunk.Ranges.length > 0) {
+          const seenLines = new Set<number>();
           for (const range of chunk.Ranges) {
+            const line = range.Start?.LineNumber ?? chunk.ContentStart.LineNumber;
+            if (seenLines.has(line)) {
+              continue;
+            }
+            seenLines.add(line);
             usages.push({
               type: 'usage',
               file: fileName,
               repository,
-              line: range.Start.LineNumber,
-              column: range.Start.Column,
+              line,
+              column: range.Start?.Column ?? chunk.ContentStart.Column,
               context: context.trim(),
             });
           }

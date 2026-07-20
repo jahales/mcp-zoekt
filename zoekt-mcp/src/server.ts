@@ -443,7 +443,26 @@ async function startHttpServer(
   // Track active sessions. Each SSE connection gets its own McpServer because
   // the SDK's Protocol binds to a single transport; sharing one instance would
   // silently detach earlier clients whenever a new one connects.
-  const sessions = new Map<string, { transport: SSEServerTransport; server: McpServer }>();
+  interface Session {
+    transport: SSEServerTransport;
+    server: McpServer;
+    closed: boolean;
+  }
+  const sessions = new Map<string, Session>();
+
+  // Close a session exactly once, whether triggered by the connection dropping
+  // or by graceful shutdown, so the McpServer is never double-closed.
+  const closeSession = (id: string): Promise<void> => {
+    const session = sessions.get(id);
+    if (!session || session.closed) {
+      return Promise.resolve();
+    }
+    session.closed = true;
+    sessions.delete(id);
+    return session.server.close().catch((err: unknown) => {
+      httpLogger.warn({ err, sessionId: id }, 'error closing session server');
+    });
+  };
 
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     // Do not trust the Host header for URL parsing; we only need path + query.
@@ -513,17 +532,14 @@ async function startHttpServer(
       const sessionId = transport.sessionId;
       const sessionServer = serverFactory();
       const sseLogger = reqLogger.child({ sessionId });
-      sessions.set(sessionId, { transport, server: sessionServer });
+      sessions.set(sessionId, { transport, server: sessionServer, closed: false });
 
       sseLogger.info('sse connection opened');
 
       // Clean up on close
       res.on('close', () => {
         sseLogger.info('sse connection closed');
-        sessions.delete(sessionId);
-        sessionServer.close().catch((err: unknown) => {
-          sseLogger.warn({ err }, 'error closing session server');
-        });
+        void closeSession(sessionId);
       });
 
       await sessionServer.connect(transport);
@@ -584,10 +600,7 @@ async function startHttpServer(
       logger.info({ transport: 'http', host, port, url: `http://${host}:${port}` }, 'MCP HTTP server started');
       resolve({
         close: async (): Promise<void> => {
-          for (const { server: sessionServer } of sessions.values()) {
-            await sessionServer.close();
-          }
-          sessions.clear();
+          await Promise.all([...sessions.keys()].map((id) => closeSession(id)));
           await new Promise<void>((closeResolve, closeReject) => {
             httpServer.close((err) => (err ? closeReject(err) : closeResolve()));
           });
