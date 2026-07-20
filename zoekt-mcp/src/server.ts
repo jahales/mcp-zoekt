@@ -7,8 +7,8 @@ import { z } from 'zod';
 import type { McpServerConfig } from './config.js';
 import type { Logger } from './logger.js';
 import { ZoektClient, ZoektError } from './zoekt/client.js';
-import type { FileMatch, SearchStats } from './zoekt/types.js';
 import { formatRepoList, formatEmptyResponse } from './formatting/repoList.js';
+import { createSearchHandler } from './tools/search.js';
 import { createSearchSymbolsHandler } from './tools/search-symbols.js';
 import { createSearchFilesHandler } from './tools/search-files.js';
 import { createFindReferencesHandler } from './tools/find-references.js';
@@ -62,6 +62,8 @@ function registerSearchTool(
   client: ZoektClient,
   logger: Logger
 ): void {
+  const handler = createSearchHandler(client, logger);
+
   server.tool(
     'search',
     'Search code across indexed repositories using Zoekt query syntax',
@@ -75,42 +77,12 @@ function registerSearchTool(
       contextLines: z.number().int().min(0).max(10).default(3).describe(
         'Number of context lines to include around each match'
       ),
+      cursor: z.string().optional().describe(
+        'Pagination cursor from previous response'
+      ),
     },
-    async ({ query, limit, contextLines }) => {
-      const startTime = Date.now();
-      logger.info({ query, limit, contextLines }, 'search request');
-
-      try {
-        const response = await client.search(query, { limit, contextLines });
-        const duration = Date.now() - startTime;
-
-        const fileMatches = response.result?.FileMatches ?? [];
-        const stats = response.result?.Stats;
-
-        logger.info(
-          { query, duration, matchCount: stats?.MatchCount ?? 0, fileCount: fileMatches.length },
-          'search complete'
-        );
-
-        if (fileMatches.length === 0) {
-          return {
-            content: [{ type: 'text' as const, text: `## Results for: \`${query}\`\n\nNo matches found.` }],
-          };
-        }
-
-        const formattedResults = formatSearchResults(query, fileMatches, stats);
-        return {
-          content: [{ type: 'text' as const, text: formattedResults }],
-        };
-      } catch (error) {
-        const duration = Date.now() - startTime;
-        logger.error({ query, duration, err: error }, 'search error');
-
-        return {
-          content: [{ type: 'text' as const, text: formatError(error) }],
-          isError: true,
-        };
-      }
+    async ({ query, limit, contextLines, cursor }) => {
+      return handler({ query, limit, contextLines, cursor });
     }
   );
 }
@@ -349,52 +321,7 @@ function registerGetHealthTool(
   );
 }
 
-/**
- * Format search results as readable text
- */
-function formatSearchResults(
-  query: string,
-  fileMatches: FileMatch[],
-  stats?: SearchStats
-): string {
-  let output = `## Results for: \`${query}\`\n\n`;
-
-  for (const match of fileMatches) {
-    const repoName = match.Repo ?? match.Repository ?? 'Unknown';
-    output += `### ${repoName} - ${match.FileName}\n`;
-    output += `Language: ${match.Language || 'Unknown'} | Branch: ${match.Branches?.[0] || 'HEAD'}\n\n`;
-
-    // Handle ChunkMatches (newer format)
-    if (match.ChunkMatches && match.ChunkMatches.length > 0) {
-      for (const chunk of match.ChunkMatches) {
-        const content = decodeBase64(chunk.Content);
-        const startLine = chunk.ContentStart.LineNumber;
-        output += `\`\`\`${match.Language?.toLowerCase() || ''}\n`;
-        output += content;
-        output += `\`\`\`\n`;
-        output += `Line ${startLine}\n\n`;
-      }
-    }
-    // Handle LineMatches (older format)
-    else if (match.LineMatches && match.LineMatches.length > 0) {
-      for (const line of match.LineMatches) {
-        const content = decodeBase64(line.Line);
-        output += `Line ${line.LineNumber}: ${content.trim()}\n`;
-      }
-      output += '\n';
-    }
-
-    output += '---\n\n';
-  }
-
-  if (stats) {
-    const durationMs = stats.Duration / 1_000_000; // nanoseconds to ms
-    output += `Stats: ${stats.MatchCount} matches in ${stats.FileCount} files (${durationMs.toFixed(0)}ms)\n`;
-  }
-
-  return output;
-}
-
+// formatSearchResults and decodeBase64 now live in './tools/search.js'.
 // formatRepoList, formatBytesCompact, and formatEmptyResponse are imported from './formatting/repoList.js'
 
 /**
@@ -470,17 +397,6 @@ function detectLanguage(path: string): string {
     toml: 'toml',
   };
   return languageMap[ext ?? ''] ?? '';
-}
-
-/**
- * Decode base64 content from Zoekt response
- */
-function decodeBase64(encoded: string): string {
-  try {
-    return Buffer.from(encoded, 'base64').toString('utf-8');
-  } catch {
-    return encoded; // Return as-is if not base64
-  }
 }
 
 /** Handle to a running server, used for graceful shutdown */
