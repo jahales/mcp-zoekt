@@ -1,11 +1,16 @@
 # Zoekt Dockerfile with Universal Ctags support
 # Ctags enables symbol-aware code search (functions, classes, variables)
 
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 RUN apk add --no-cache ca-certificates git
 
 ENV CGO_ENABLED=0
+# We build zoekt's HEAD (cloned --depth 1 below), so its go.mod can require a
+# newer Go than this base image. GOTOOLCHAIN=auto lets Go fetch the required
+# toolchain on demand instead of failing the build (official golang images
+# default to GOTOOLCHAIN=local). Keeps this from breaking on every upstream bump.
+ENV GOTOOLCHAIN=auto
 WORKDIR /go/src/github.com/sourcegraph/zoekt
 
 # Clone zoekt source
