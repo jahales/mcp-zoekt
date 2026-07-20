@@ -59,6 +59,11 @@ export class ZoektClient {
     const body = JSON.stringify({
       Q: query,
       Opts: {
+        // Request ChunkMatches so the backend returns SymbolInfo (only present on
+        // ChunkMatches, never LineMatches). Without this, search_symbols and
+        // find_references get no symbol data. The search/find-references formatters
+        // already handle both shapes and prefer ChunkMatches.
+        ChunkMatches: true,
         NumContextLines: options.contextLines ?? 3,
         MaxDocDisplayCount: options.limit ?? 30,
       },
