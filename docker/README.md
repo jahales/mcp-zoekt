@@ -129,6 +129,24 @@ docker compose up -d
 advanced multi-org scheduling/configuration, use the production workflow documented in
 `docker-compose.prod.yml` with `update-index.sh`.
 
+### Scheduled index updates (macOS: launchd)
+
+`update-index.sh` re-mirrors and re-indexes the configured `GITHUB_ORGS`, then reloads
+the webserver. Schedule it with a **launchd agent** rather than cron — launchd runs the
+job on the next wake if the Mac was asleep at the scheduled time, whereas cron skips it.
+
+Copy `com.zoekt.index-update.plist.example` to
+`~/Library/LaunchAgents/com.zoekt.index-update.plist`, replace the path placeholders, then:
+
+```sh
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.zoekt.index-update.plist
+launchctl print gui/$(id -u)/com.zoekt.index-update   # verify it's loaded
+launchctl kickstart -k gui/$(id -u)/com.zoekt.index-update   # run once now (optional)
+```
+
+Requires Docker Desktop running; the script waits up to 5 min for the daemon and holds a
+lock so overlapping runs are skipped. Output goes to `~/zoekt-update.log`.
+
 ## Environment Variables
 
 ### zoekt-sync (profile: github)
