@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd agent for the nightly Zoekt index update (macOS).
+
+  Preferred over cron: if the Mac is asleep at the scheduled time, launchd runs
+  the job on the next wake; cron silently skips it.
+
+  Install:
+    1. Copy to ~/Library/LaunchAgents/com.zoekt.index-update.plist
+    2. Replace ABSOLUTE_PATH_TO_REPO and YOUR_HOME below with real paths.
+    3. launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.zoekt.index-update.plist
+    4. Verify: launchctl print gui/$(id -u)/com.zoekt.index-update
+    Reload after edits: launchctl bootout .../com.zoekt.index-update && launchctl bootstrap ...
+    Run once now:       launchctl kickstart -k gui/$(id -u)/com.zoekt.index-update
+
+  Requires Docker Desktop running (the script waits up to 5 min for the daemon).
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.zoekt.index-update</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>ABSOLUTE_PATH_TO_REPO/docker/update-index.sh</string>
+  </array>
+
+  <!-- 2:00 AM local time daily; runs on next wake if asleep then. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>2</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+
+  <!-- launchd's default PATH omits docker; the script also sets this defensively. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>YOUR_HOME/zoekt-update.log</string>
+  <key>StandardErrorPath</key>
+  <string>YOUR_HOME/zoekt-update.log</string>
+
+  <!-- Do NOT run the heavy index on every login/load; only on the schedule. -->
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>
