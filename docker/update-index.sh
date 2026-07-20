@@ -42,7 +42,10 @@ done
 COMPOSE="docker compose -p docker -f docker-compose.prod.yml"
 
 echo "Mirroring repositories..."
-$COMPOSE --profile mirror run --rm zoekt-mirror
+if ! $COMPOSE --profile mirror run --rm zoekt-mirror; then
+  echo "ERROR: mirror failed (expired token / no network?); skipping re-index so we don't rebuild from a stale checkout." >&2
+  exit 1
+fi
 
 echo "Re-indexing repositories..."
 $COMPOSE --profile index run --rm zoekt-indexer

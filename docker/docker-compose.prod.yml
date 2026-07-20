@@ -46,13 +46,30 @@ services:
         TOKEN=$$(cat /config/github-token.txt)
         git config --global url."https://$$TOKEN@github.com/".insteadOf "https://github.com/"
         echo "Starting mirror at $$(date)"
-        echo "$${ORGS}" | tr ',' '\n' | while IFS= read -r org; do
+        # Split on commas without a pipe-to-while (a subshell would swallow the
+        # exit status). Track failures so a bad token / network error makes the
+        # container exit non-zero instead of silently mirroring nothing.
+        rc=0
+        OLDIFS=$$IFS; IFS=','
+        for org in $${ORGS}; do
+          IFS=$$OLDIFS
           org=$$(echo "$$org" | tr -d '[:space:]')
-          [ -z "$$org" ] && continue
-          echo "Mirroring org: $$org"
-          zoekt-mirror-github -dest /data/repos -org "$$org" -token /config/github-token.txt -no_archived
+          if [ -n "$$org" ]; then
+            echo "Mirroring org: $$org"
+            if ! zoekt-mirror-github -dest /data/repos -org "$$org" -token /config/github-token.txt -no_archived; then
+              echo "ERROR: mirror failed for org $$org (check token/network)" >&2
+              rc=1
+            fi
+          fi
+          IFS=','
         done
-        echo "Mirror complete at $$(date)"
+        IFS=$$OLDIFS
+        if [ "$$rc" -ne 0 ]; then
+          echo "Mirror finished WITH ERRORS at $$(date)" >&2
+        else
+          echo "Mirror complete at $$(date)"
+        fi
+        exit $$rc
     volumes:
       - zoekt-data:/data
       - ./config:/config:ro
