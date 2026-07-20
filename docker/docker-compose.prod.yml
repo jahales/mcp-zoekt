@@ -109,6 +109,10 @@ services:
           exit 1
         fi
         echo "Starting indexing at $$(date)"
+        # Index the default branch plus common long-lived branches. Most repos
+        # won't have all of them, so -allow_missing_branches keeps those repos
+        # indexing the branches they do have instead of failing.
+        BRANCHES="HEAD,main,dev,stage,staging"
         echo "$${ORGS}" | tr ',' '\n' | while IFS= read -r org; do
           org=$$(echo "$$org" | tr -d '[:space:]')
           [ -z "$$org" ] && continue
@@ -116,7 +120,8 @@ services:
           for repo in /data/repos/github.com/$$org/*.git; do
             if [ -d "$$repo" ]; then
               echo "Indexing $$repo..."
-              zoekt-git-index -index /data/index "$$repo" || echo "Failed to index $$repo"
+              zoekt-git-index -branches "$${BRANCHES}" -allow_missing_branches -index /data/index "$$repo" \
+                || echo "Failed to index $$repo"
             fi
           done
         done
