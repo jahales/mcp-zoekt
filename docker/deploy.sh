@@ -174,10 +174,16 @@ echo "This may take several minutes depending on repository count and size..."
 docker compose -f docker-compose.prod.yml --profile mirror run --rm zoekt-mirror
 docker compose -f docker-compose.prod.yml --profile index run --rm zoekt-indexer
 
-# Start the scheduler for daily updates
+# Daily updates run via host cron, not a compose service. Install once with:
+#   (crontab -l 2>/dev/null; echo "0 2 * * * $SCRIPT_DIR/update-index.sh >> ~/zoekt-update.log 2>&1") | crontab -
+# See update-index.sh. (On a laptop, cron only fires while awake with Docker running.)
 echo ""
-echo "Starting scheduler for daily index updates..."
-docker compose -f docker-compose.prod.yml up -d zoekt-scheduler
+if crontab -l 2>/dev/null | grep -q "update-index.sh"; then
+    echo "Nightly index update cron is installed."
+else
+    echo "NOTE: no nightly index-update cron found. To enable daily refresh, install:"
+    echo "  (crontab -l 2>/dev/null; echo \"0 2 * * * $SCRIPT_DIR/update-index.sh >> ~/zoekt-update.log 2>&1\") | crontab -"
+fi
 
 # Start the MCP server
 echo ""
