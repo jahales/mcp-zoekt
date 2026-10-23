@@ -41,11 +41,22 @@ done
 # and the already-running webserver.
 COMPOSE="docker compose -p docker -f docker-compose.prod.yml"
 
+# Retried because most failures are transient GitHub API errors (EOF, TLS handshake timeout)
+# that a fresh attempt minutes later gets past; a run that fails every attempt still skips
+# the re-index.
+MIRROR_ATTEMPTS=3
+MIRROR_RETRY_DELAY="${MIRROR_RETRY_DELAY:-120}"
 echo "Mirroring repositories..."
-if ! $COMPOSE --profile mirror run --rm zoekt-mirror; then
-  echo "ERROR: mirror failed (expired token / no network?); skipping re-index so we don't rebuild from a stale checkout." >&2
-  exit 1
-fi
+attempt=1
+until $COMPOSE --profile mirror run --rm zoekt-mirror; do
+  if [ "$attempt" -ge "$MIRROR_ATTEMPTS" ]; then
+    echo "ERROR: mirror failed $attempt times (expired token / no network?); skipping re-index so we don't rebuild from a stale checkout." >&2
+    exit 1
+  fi
+  echo "Mirror attempt $attempt failed; retrying in $((attempt * MIRROR_RETRY_DELAY)) s..."
+  sleep $((attempt * MIRROR_RETRY_DELAY))
+  attempt=$((attempt + 1))
+done
 
 echo "Re-indexing repositories..."
 $COMPOSE --profile index run --rm zoekt-indexer
