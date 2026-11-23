@@ -8,6 +8,7 @@ describe('config', () => {
 
   describe('loadConfig', () => {
     it('should require zoektUrl', () => {
+      vi.stubEnv('ZOEKT_URL', '');
       expect(() => loadConfig([])).toThrow(/zoekt.*url.*required/i);
     });
 

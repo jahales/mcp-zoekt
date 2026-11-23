@@ -27,7 +27,8 @@ beforeAll(async () => {
   }
   
   console.log('✅ Zoekt is available\n');
-});
+  // Outlasts the 60 s wait, so the hint above reaches the output instead of a bare hook timeout.
+}, 70_000);
 
 afterAll(async () => {
   // Cleanup any test resources if needed
