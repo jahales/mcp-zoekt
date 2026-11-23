@@ -29,8 +29,8 @@
     "watch": "tsc --watch",
     "test": "vitest run tests/unit",
     "test:unit": "vitest run tests/unit",
-    "test:integration": "vitest run tests/integration",
-    "test:all": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:all": "npm run test:unit && npm run test:integration",
     "test:watch": "vitest tests/unit",
     "lint": "eslint src/**/*.ts",
     "typecheck": "tsc --noEmit"

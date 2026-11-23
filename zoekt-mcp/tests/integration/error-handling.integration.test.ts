@@ -4,7 +4,9 @@
  * Tests error conditions like unavailable backend and timeouts.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { ZoektClient, ZoektError } from '../../src/zoekt/client.js';
 
 describe('Error Handling Integration', () => {
@@ -36,20 +38,28 @@ describe('Error Handling Integration', () => {
   });
 
   describe('Timeout Handling', () => {
+    // Accepts connections and never answers, so a request to it can only time out.
+    let silentServer: Server;
+    let silentUrl: string;
+
+    beforeAll(async () => {
+      silentServer = createServer(() => {});
+      await new Promise<void>((resolve) => silentServer.listen(0, '127.0.0.1', resolve));
+      silentUrl = `http://127.0.0.1:${(silentServer.address() as AddressInfo).port}`;
+    });
+
+    afterAll(() => {
+      silentServer.closeAllConnections();
+      silentServer.close();
+    });
+
     it('should throw TIMEOUT error when request times out', async () => {
-      // Create client with very short timeout
-      const client = new ZoektClient('http://localhost:6070', 1);
-      
-      try {
-        await client.search('test query that should timeout', { limit: 10 });
-        // If we get here, the request completed before timeout (fast network)
-        // This is acceptable - we're testing the timeout mechanism exists
-      } catch (error) {
-        if (error instanceof ZoektError) {
-          // Either TIMEOUT or UNAVAILABLE is acceptable for very short timeouts
-          expect(['TIMEOUT', 'UNAVAILABLE']).toContain(error.code);
-        }
-      }
+      const client = new ZoektClient(silentUrl, 100);
+
+      await expect(client.search('test', { limit: 10 })).rejects.toMatchObject({
+        name: 'ZoektError',
+        code: 'TIMEOUT',
+      });
     });
   });
 
