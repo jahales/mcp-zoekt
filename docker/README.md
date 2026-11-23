@@ -134,9 +134,16 @@ advanced multi-org scheduling/configuration, use the production workflow documen
 
 `update-index.sh` re-mirrors and re-indexes the configured `GITHUB_ORGS` (and `GHE_ORGS`,
 below), then reloads the webserver. Each repo is indexed on `HEAD` plus whichever of `main`,
-`dev`, `develop`, `stage` and `staging` it has. Schedule it with a **launchd agent** rather
-than cron — launchd runs the job on the next wake if the Mac was asleep at the scheduled
-time, whereas cron skips it.
+`dev`, `develop`, `stage` and `staging` it has.
+
+The index holds exactly the repos cloned under `/data/repos`. The mirror deletes the clone of
+a repo that left its org or was archived, and the indexer then deletes that repo's shards. An
+org with no clones at all keeps its shards, so a mirror that never populated can't empty the
+index. The indexer also removes `*.tmp` shard files more than an hour old, which interrupted
+runs leave behind.
+
+Schedule it with a **launchd agent** rather than cron — launchd runs the job on the next
+wake if the Mac was asleep at the scheduled time, whereas cron skips it.
 
 Copy `com.zoekt.index-update.plist.example` to
 `~/Library/LaunchAgents/com.zoekt.index-update.plist`, replace the path placeholders, then:
@@ -171,8 +178,8 @@ then re-indexes everything anyway, GHE repos from their last successful fetch. S
 when the host is unreachable (say, it needs a VPN that is down) still refreshes github.com.
 A github.com mirror failure still skips the whole re-index.
 
-Repos that a new `GHE_EXCLUDE` matches are not removed if already mirrored: delete them
-from `/data/repos/<host>/<org>/`, and their shards from `/data/index/`, by hand.
+Repos that a new `GHE_EXCLUDE` matches are not removed if already mirrored: delete their
+clones from `/data/repos/<host>/<org>/` by hand, and the next run drops their shards.
 
 ## Environment Variables
 
