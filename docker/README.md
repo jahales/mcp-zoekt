@@ -136,11 +136,21 @@ advanced multi-org scheduling/configuration, use the production workflow documen
 below), then reloads the webserver. Each repo is indexed on `HEAD` plus whichever of `main`,
 `dev`, `develop`, `stage` and `staging` it has.
 
-The index holds exactly the repos cloned under `/data/repos`. The mirror deletes the clone of
-a repo that left its org or was archived, and the indexer then deletes that repo's shards. An
+A mirror deletes a clone only when the API shows its repo archived or moved (renamed or
+transferred), via `scripts/prune-mirror.sh`. A repo that merely drops out of the org listing
+keeps its clone, because GitHub answers 404 both for a deleted repo and for one the token can
+no longer see, and a narrower token must not cost clones. The log names each such repo
+("not visible to the token"); if it was deleted, delete its clone by hand.
+
+The indexer then deletes the shards of any repo in a configured org whose clone is gone. An
 org with no clones at all keeps its shards, so a mirror that never populated can't empty the
-index. The indexer also removes `*.tmp` shard files more than an hour old, which interrupted
-runs leave behind.
+index, and orgs no longer configured are left alone. The indexer also removes `*.tmp` shard
+files more than an hour old, which interrupted runs leave behind. Org names match their clone
+directories case-insensitively.
+
+Each mirror attempt is stopped after `MIRROR_TIMEOUT` seconds (default 3 hours;
+`GHE_MIRROR_TIMEOUT` overrides it for the GHE mirror), so a host that accepts connections
+but never answers can't hold the run.
 
 Schedule it with a **launchd agent** rather than cron — launchd runs the job on the next
 wake if the Mac was asleep at the scheduled time, whereas cron skips it.
@@ -178,8 +188,9 @@ then re-indexes everything anyway, GHE repos from their last successful fetch. S
 when the host is unreachable (say, it needs a VPN that is down) still refreshes github.com.
 A github.com mirror failure still skips the whole re-index.
 
-Repos that a new `GHE_EXCLUDE` matches are not removed if already mirrored: delete their
-clones from `/data/repos/<host>/<org>/` by hand, and the next run drops their shards.
+`GHE_EXCLUDE` and `GHE_NAME` only decide what gets cloned. Repos that a new `GHE_EXCLUDE`
+matches are not removed if already mirrored: delete their clones from
+`/data/repos/<host>/<org>/` by hand, and the next run drops their shards.
 
 ## Environment Variables
 

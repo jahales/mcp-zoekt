@@ -64,21 +64,22 @@ services:
             echo "Mirroring org: $$org"
             # zoekt-mirror-github only CLONES repos that are missing; it does not
             # update existing clones. Clone new repos first...
-            # -delete prunes clones of repos no longer in the org (deleted, or archived
-            # given -no_archived); zoekt-indexer then drops their shards. It is
-            # scoped per-org (it walks only /data/repos/github.com/$$org) and is a
-            # no-op if the API returns zero repos, so it cannot wipe the mirror on
-            # an auth failure or clobber the other org.
-            if ! zoekt-mirror-github -dest /data/repos -org "$$org" -token /config/github-token.txt -no_archived -delete; then
+            # Not -delete: it drops every clone missing from the listing, including
+            # repos a narrower token merely can't see. prune-mirror.sh needs evidence.
+            if ! zoekt-mirror-github -dest /data/repos -org "$$org" -token /config/github-token.txt -no_archived; then
               echo "ERROR: mirror failed for org $$org (check token/network)" >&2
               rc=1
               IFS=','
               continue
             fi
+            sh /scripts/prune-mirror.sh https://api.github.com github.com "$$org" /config/github-token.txt \
+              || echo "WARN: pruning failed for org $$org" >&2
             # ...then fetch updates into every existing bare clone so re-indexing
-            # sees new commits (auth via the insteadOf token config above).
+            # sees new commits (auth via the insteadOf token config above). The clone
+            # directory carries the org's canonical case, which the configured name may not.
+            dir=$$(ls /data/repos/github.com | grep -ixF "$$org" | head -n 1)
             echo "Fetching updates for existing $$org clones..."
-            for repo in /data/repos/github.com/$$org/*.git; do
+            for repo in /data/repos/github.com/$$dir/*.git; do
               [ -d "$$repo" ] || continue
               git --git-dir="$$repo" fetch --prune --quiet origin "+refs/heads/*:refs/heads/*" \
                 || echo "WARN: fetch failed for $$repo" >&2
@@ -96,6 +97,7 @@ services:
     volumes:
       - zoekt-data:/data
       - ./config:/config:ro
+      - ./scripts:/scripts:ro
     restart: "no"
     profiles:
       - mirror
@@ -136,17 +138,20 @@ services:
           if [ -n "$$org" ]; then
             echo "Mirroring $$HOST org: $$org"
             if ! zoekt-mirror-github -url "$${GHE_URL}" -dest /data/repos -org "$$org" -token /config/ghe-token.txt \
-                -no_archived -delete -name "$${GHE_NAME}" -exclude "$${GHE_EXCLUDE}"; then
+                -no_archived -name "$${GHE_NAME}" -exclude "$${GHE_EXCLUDE}"; then
               echo "ERROR: mirror failed for $$HOST org $$org (check VPN/token)" >&2
               rc=1
               IFS=','
               continue
             fi
+            sh /scripts/prune-mirror.sh "$${GHE_URL%/}/api/v3" "$$HOST" "$$org" /config/ghe-token.txt \
+              || echo "WARN: pruning failed for $$HOST org $$org" >&2
+            dir=$$(ls "/data/repos/$$HOST" | grep -ixF "$$org" | head -n 1)
             echo "Fetching updates for existing $$HOST/$$org clones..."
             # Stop once the host looks gone (e.g. the VPN dropped mid-run): each further
             # fetch would wait out a TCP timeout.
             fails=0
-            for repo in /data/repos/$$HOST/$$org/*.git; do
+            for repo in /data/repos/$$HOST/$$dir/*.git; do
               [ -d "$$repo" ] || continue
               if git --git-dir="$$repo" fetch --prune --quiet origin "+refs/heads/*:refs/heads/*"; then
                 fails=0
@@ -173,6 +178,7 @@ services:
     volumes:
       - zoekt-data:/data
       - ./config:/config:ro
+      - ./scripts:/scripts:ro
     restart: "no"
     profiles:
       - mirror-ghe
@@ -205,12 +211,18 @@ services:
         BRANCHES="HEAD,main,dev,develop,stage,staging"
         # GHE repos index from their last successful fetch when tonight's GHE mirror failed.
         GHE_HOST=$${GHE_URL#*://}; GHE_HOST=$${GHE_HOST%%/*}
-        {
-          echo "$${ORGS}" | tr ',' '\n' | sed 's|^|github.com/|'
-          [ -n "$${GHE_HOST}" ] && echo "$${GHE_ORGS}" | tr ',' '\n' | sed "s|^|$${GHE_HOST}/|"
-        } | while IFS= read -r org; do
-          org=$$(echo "$$org" | tr -d '[:space:]')
-          case "$$org" in */) continue ;; esac
+        # Configured orgs as <host>/<clone dir>; the dir carries the org's canonical case.
+        ORG_DIRS=$$(
+          {
+            echo "$${ORGS}" | tr ',' '\n' | sed 's|^|github.com/|'
+            [ -n "$${GHE_HOST}" ] && echo "$${GHE_ORGS}" | tr ',' '\n' | sed "s|^|$${GHE_HOST}/|"
+          } | tr -d ' \t' | while IFS=/ read -r host org; do
+            [ -n "$$org" ] || continue
+            dir=$$(ls "/data/repos/$$host" 2>/dev/null | grep -ixF "$$org" | head -n 1)
+            if [ -n "$$dir" ]; then echo "$$host/$$dir"; else echo "WARN: no clones for $$host/$$org" >&2; fi
+          done
+        )
+        for org in $$ORG_DIRS; do
           echo "Indexing org: $$org"
           for repo in /data/repos/$$org/*.git; do
             if [ -d "$$repo" ]; then
@@ -220,16 +232,22 @@ services:
             fi
           done
         done
-        # A repo whose clone the mirror deleted keeps its shards until removed here. An org
-        # with no clones at all is left alone, so a lost or unpopulated mirror can't empty the index.
+        # A repo whose clone is gone keeps its shards until removed here. Only configured
+        # orgs are swept, and an org with no clones at all is left alone, so a lost or
+        # unpopulated mirror can't empty the index.
         echo "Removing shards of repos no longer mirrored..."
-        for shard in /data/index/*.zoekt; do
-          name=$$(basename "$$shard" | sed -E 's/_v[0-9]+\.[0-9]+\.zoekt$$//; s/%2F/\//g')
-          case "$$name" in */*/*/* | *%* | *.zoekt) continue ;; */*/*) ;; *) continue ;; esac
-          [ -d "/data/repos/$$name.git" ] && continue
-          ls -d "/data/repos/$${name%/*}"/*.git >/dev/null 2>&1 || continue
-          echo "Removing $$shard"
-          rm -f "$$shard" "$$shard.meta"
+        for org in $$ORG_DIRS; do
+          ls -d /data/repos/$$org/*.git >/dev/null 2>&1 || continue
+          prefix=$$(echo "$$org" | sed 's|/|%2F|g')%2F
+          for shard in /data/index/$$prefix*.zoekt; do
+            [ -f "$$shard" ] || continue
+            repo=$$(basename "$$shard" | sed -E 's/_v[0-9]+\.[0-9]+\.zoekt$$//')
+            repo=$${repo#"$$prefix"}
+            case "$$repo" in *%* | *.zoekt) continue ;; esac
+            [ -d "/data/repos/$$org/$$repo.git" ] && continue
+            echo "Removing $$shard"
+            rm -f "$$shard" "$$shard.meta"
+          done
         done
         # Interrupted index runs leave half-written shards behind.
         find /data/index -maxdepth 1 -name '*.zoekt.*.tmp' -mmin +60 -print -delete
