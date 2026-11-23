@@ -23,7 +23,7 @@ RUN git init -q . && \
 RUN go install ./cmd/zoekt-webserver ./cmd/zoekt-git-index ./cmd/zoekt-index ./cmd/zoekt ./cmd/zoekt-mirror-github
 
 # Build universal-ctags from source
-FROM alpine:3.19 AS ctags-builder
+FROM alpine:3.24 AS ctags-builder
 
 RUN apk add --no-cache \
     git \
@@ -44,8 +44,9 @@ RUN git clone -q --depth 1 --branch "$CTAGS_REF" https://github.com/universal-ct
     make -j$(nproc) && \
     make install DESTDIR=/ctags-install
 
-# Production image
-FROM alpine:3.19
+# Production image. git 2.44+ lets zoekt-git-index stream blobs through
+# `git cat-file --batch --filter`; older git falls back to the slower go-git reader.
+FROM alpine:3.24
 
 RUN apk add --no-cache git ca-certificates tini jansson libseccomp
 
