@@ -92,6 +92,18 @@ export class ZoektClient {
       if (result && result.Files && !result.FileMatches) {
         result.FileMatches = result.Files;
       }
+      // /api/search carries the totals inline on Result; a nested Stats is the fallback.
+      if (result && result.MatchCount !== undefined) {
+        result.Stats = {
+          MatchCount: result.MatchCount,
+          FileCount: result.FileCount ?? 0,
+          Duration: result.Duration ?? 0,
+          ContentBytesLoaded: result.ContentBytesLoaded ?? 0,
+          IndexBytesLoaded: result.IndexBytesLoaded ?? 0,
+          FilesSkipped: result.FilesSkipped ?? 0,
+          ShardsSkipped: result.ShardsSkipped ?? 0,
+        };
+      }
       return { result };
     } catch (error) {
       if (error instanceof ZoektError) {

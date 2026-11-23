@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { z } from 'zod';
 import { createSearchHandler } from '../../src/tools/search.js';
 import type { Logger } from '../../src/logger.js';
-import type { ZoektClient } from '../../src/zoekt/client.js';
+import { ZoektClient } from '../../src/zoekt/client.js';
 
 // Mock logger
 const mockLogger: Logger = {
@@ -234,6 +234,59 @@ describe('search tool', () => {
       expect(result.isError).toBe(true);
       expect((result.content[0] as { text: string }).text).toContain('does not match');
     });
+  });
+});
+
+describe('search tool totals from the /api/search response', () => {
+  // Zoekt's POST /api/search embeds its Stats struct in Result, so the totals
+  // arrive inline on Result rather than under a Stats key.
+  const apiResponse = (totals: Record<string, number>) => ({
+    Result: {
+      Files: [{
+        Repository: 'github.com/org/repo',
+        FileName: 'src/main.ts',
+        Branches: ['main'],
+        Language: 'TypeScript',
+        ChunkMatches: [{
+          Content: Buffer.from('const x = 1;').toString('base64'),
+          ContentStart: { ByteOffset: 0, LineNumber: 1, Column: 1 },
+          Ranges: [],
+          FileName: false,
+        }],
+      }],
+      MatchCount: 42,
+      FileCount: 7,
+      Duration: 12_000_000,
+      ContentBytesLoaded: 0,
+      IndexBytesLoaded: 0,
+      FilesSkipped: 0,
+      ShardsSkipped: 0,
+      ...totals,
+    },
+  });
+
+  const searchText = async (totals: Record<string, number> = {}) => {
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(apiResponse(totals)),
+    } as Response);
+    const handler = createSearchHandler(new ZoektClient('http://zoekt.test'), mockLogger);
+    const result = await handler({ query: 'const', limit: 30, contextLines: 3 });
+    return (result.content[0] as { text: string }).text;
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('prints the match and file totals', async () => {
+    expect(await searchText()).toContain('Stats: 42 matches in 7 files (12ms)');
+  });
+
+  it('marks the totals as lower bounds when Zoekt skipped files or shards', async () => {
+    expect(await searchText()).not.toContain('lower bounds');
+    expect(await searchText({ FilesSkipped: 1500 })).toContain('lower bounds');
+    expect(await searchText({ ShardsSkipped: 3 })).toContain('lower bounds');
   });
 });
 

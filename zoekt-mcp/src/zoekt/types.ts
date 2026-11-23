@@ -26,6 +26,8 @@ export interface SearchResult {
   Duration?: number;
   ContentBytesLoaded?: number;
   IndexBytesLoaded?: number;
+  FilesSkipped?: number;
+  ShardsSkipped?: number;
 }
 
 export interface FileMatch {

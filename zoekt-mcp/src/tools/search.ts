@@ -11,6 +11,7 @@ import type { Logger } from '../logger.js';
 import type { FileMatch, SearchStats } from '../zoekt/types.js';
 import { validateCursor, generateNextCursor } from '../pagination/cursor.js';
 import { enhanceError, formatStructuredError } from '../errors/codes.js';
+import { formatSearchStats } from '../formatting/searchStats.js';
 
 /** Default result limit for pagination */
 const DEFAULT_LIMIT = 30;
@@ -69,8 +70,7 @@ export function formatSearchResults(
   }
 
   if (stats) {
-    const durationMs = stats.Duration / 1_000_000; // nanoseconds to ms
-    output += `Stats: ${stats.MatchCount} matches in ${stats.FileCount} files (${durationMs.toFixed(0)}ms)\n`;
+    output += formatSearchStats(stats);
   }
 
   if (nextCursor) {

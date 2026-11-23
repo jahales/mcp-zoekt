@@ -239,6 +239,37 @@ describe('search_symbols tool', () => {
       expect((result.content[0] as { text: string }).text).toContain('function');
     });
 
+    it("prints Zoekt's totals, flagged as lower bounds when Zoekt skipped files", async () => {
+      mockClient.search.mockResolvedValue({
+        result: {
+          FileMatches: [{
+            Repository: 'github.com/org/repo',
+            FileName: 'src/handler.ts',
+            Branches: ['main'],
+            Language: 'TypeScript',
+            ChunkMatches: [{
+              Content: Buffer.from('function handleRequest() {').toString('base64'),
+              ContentStart: { ByteOffset: 0, LineNumber: 10, Column: 1 },
+              Ranges: [{
+                Start: { ByteOffset: 9, LineNumber: 10, Column: 10 },
+                End: { ByteOffset: 22, LineNumber: 10, Column: 23 },
+              }],
+              FileName: false,
+              SymbolInfo: [{ Sym: 'handleRequest', Kind: 'function', Parent: '', ParentKind: '' }],
+            }],
+          }],
+          Stats: { MatchCount: 120, FileCount: 45, Duration: 5000000, FilesSkipped: 10, ShardsSkipped: 0 },
+        },
+      });
+
+      const handler = createSearchSymbolsHandler(mockClient as unknown as ZoektClient, mockLogger);
+      const text = ((await handler({ query: 'handleRequest', limit: 30, contextLines: 3 })).content[0] as { text: string }).text;
+
+      expect(text).toContain('Showing 1 symbols');
+      expect(text).toContain('Stats: 120 matches in 45 files (5ms)');
+      expect(text).toContain('lower bounds');
+    });
+
     it('returns no results message when no symbols found', async () => {
       mockClient.search.mockResolvedValue({
         result: {

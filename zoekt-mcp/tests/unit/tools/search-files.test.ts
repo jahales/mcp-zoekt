@@ -177,6 +177,27 @@ describe('search_files tool', () => {
       expect((result.content[0] as { text: string }).text).toContain('github.com/org/repo');
     });
 
+    it("prints Zoekt's totals, flagged as lower bounds when Zoekt skipped shards", async () => {
+      mockClient.search.mockResolvedValue({
+        result: {
+          FileMatches: [{
+            Repository: 'github.com/org/repo',
+            FileName: 'package.json',
+            Branches: ['main'],
+            Language: 'JSON',
+          }],
+          Stats: { MatchCount: 120, FileCount: 45, Duration: 3000000, FilesSkipped: 0, ShardsSkipped: 2 },
+        },
+      });
+
+      const handler = createSearchFilesHandler(mockClient as unknown as ZoektClient, mockLogger);
+      const text = ((await handler({ query: 'package.json', limit: 30 })).content[0] as { text: string }).text;
+
+      expect(text).toContain('Showing 1 files');
+      expect(text).toContain('Stats: 120 matches in 45 files (3ms)');
+      expect(text).toContain('lower bounds');
+    });
+
     it('returns no results message when no files found', async () => {
       mockClient.search.mockResolvedValue({
         result: {
