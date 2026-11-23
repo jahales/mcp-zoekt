@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.1](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.4.0...mcp-zoekt-v2.4.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* **search:** report Zoekt's search totals ([#50](https://github.com/jahales/mcp-zoekt/issues/50)) ([8bbedbb](https://github.com/jahales/mcp-zoekt/commit/8bbedbb7f569d829ef0fc9e6fb28ba18ec204471))
+
 ## [2.4.0](https://github.com/jahales/mcp-zoekt/compare/mcp-zoekt-v2.3.0...mcp-zoekt-v2.4.0) (2026-07-20)
 
 
