@@ -192,6 +192,22 @@ A github.com mirror failure still skips the whole re-index.
 matches are not removed if already mirrored: delete their clones from
 `/data/repos/<host>/<org>/` by hand, and the next run drops their shards.
 
+### Upgrading Zoekt
+
+`Dockerfile.zoekt` pins Zoekt (`ZOEKT_REF`) and universal-ctags (`CTAGS_REF`). To upgrade,
+bump them, keep the current image for rollback, rebuild, and recreate the webserver:
+
+```sh
+docker tag zoekt:local zoekt:prev
+docker build -t zoekt:local -f Dockerfile.zoekt .
+docker compose -p docker -f docker-compose.prod.yml up -d --no-deps zoekt-webserver
+```
+
+`docker tag zoekt:prev zoekt:local` and the same `up` command roll it back. Existing shards
+load unchanged as long as upstream hasn't raised `IndexFormatVersion` (in `index/toc.go`):
+check that before bumping. The webserver answers before it has loaded all shards, so check
+`/readyz` rather than `/`.
+
 ## Environment Variables
 
 ### zoekt-sync (profile: github)
