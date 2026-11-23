@@ -7,9 +7,10 @@
 
 import type { ZoektClient } from '../zoekt/client.js';
 import type { Logger } from '../logger.js';
-import type { FileMatch } from '../zoekt/types.js';
+import type { FileMatch, SearchStats } from '../zoekt/types.js';
 import { validateCursor, generateNextCursor } from '../pagination/cursor.js';
 import { enhanceError, formatStructuredError } from '../errors/codes.js';
+import { formatSearchStats } from '../formatting/searchStats.js';
 
 /** Default result limit for pagination */
 const DEFAULT_LIMIT = 30;
@@ -72,7 +73,7 @@ export function extractFiles(fileMatches: FileMatch[]): FileResult[] {
 function formatFileResults(
   query: string,
   files: FileResult[],
-  stats: { matchCount: number; fileCount: number; durationMs: number },
+  stats: { durationMs: number; zoekt: SearchStats | undefined },
   nextCursor?: string
 ): string {
   let output = `## File Search Results: \`${query}\`\n\n`;
@@ -82,7 +83,11 @@ function formatFileResults(
     return output;
   }
   
-  output += `Found ${files.length} files (${stats.durationMs.toFixed(0)}ms)\n\n`;
+  output += `Showing ${files.length} files (${stats.durationMs.toFixed(0)}ms)\n`;
+  if (stats.zoekt) {
+    output += formatSearchStats(stats.zoekt);
+  }
+  output += '\n';
   
   // Group by repository
   const byRepo = new Map<string, FileResult[]>();
@@ -164,7 +169,6 @@ export function createSearchFilesHandler(
       
       const duration = Date.now() - startTime;
       const fileMatches = response.result?.FileMatches ?? [];
-      const zoektStats = response.result?.Stats;
       
       // Extract files
       const allFiles = extractFiles(fileMatches);
@@ -173,11 +177,7 @@ export function createSearchFilesHandler(
       const paginatedFiles = allFiles.slice(offset, offset + limit);
       const hasMore = allFiles.length > offset + limit;
       
-      const stats = {
-        matchCount: zoektStats?.MatchCount ?? allFiles.length,
-        fileCount: zoektStats?.FileCount ?? fileMatches.length,
-        durationMs: duration,
-      };
+      const stats = { durationMs: duration, zoekt: response.result?.Stats };
       
       logger.info(
         { query: wrappedQuery, duration, fileCount: paginatedFiles.length, hasMore },

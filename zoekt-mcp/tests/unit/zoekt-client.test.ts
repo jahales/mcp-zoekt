@@ -53,6 +53,45 @@ describe('ZoektClient', () => {
       expect(callBody.Opts.ChunkMatches).toBe(true);
     });
 
+    it('exposes the inline /api/search totals as Stats', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          Result: {
+            Files: [],
+            MatchCount: 42,
+            FileCount: 7,
+            Duration: 12_000_000,
+            FilesSkipped: 1500,
+            ShardsSkipped: 0,
+          },
+        }),
+      } as Response);
+
+      const response = await client.search('test', {});
+
+      expect(response.result.Stats).toMatchObject({
+        MatchCount: 42,
+        FileCount: 7,
+        Duration: 12_000_000,
+        FilesSkipped: 1500,
+        ShardsSkipped: 0,
+      });
+    });
+
+    it('keeps a nested Stats when the backend sends no inline totals', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          Result: { Files: [], Stats: { MatchCount: 3, FileCount: 2, Duration: 1_000_000 } },
+        }),
+      } as Response);
+
+      const response = await client.search('test', {});
+
+      expect(response.result.Stats).toMatchObject({ MatchCount: 3, FileCount: 2 });
+    });
+
     it('should throw ZoektError when backend is unavailable', async () => {
       vi.mocked(fetch).mockRejectedValue(new Error('ECONNREFUSED'));
 

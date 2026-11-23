@@ -7,9 +7,10 @@
 
 import type { ZoektClient } from '../zoekt/client.js';
 import type { Logger } from '../logger.js';
-import type { FileMatch, Symbol, SymbolKind } from '../zoekt/types.js';
+import type { FileMatch, SearchStats, Symbol, SymbolKind } from '../zoekt/types.js';
 import { validateCursor, generateNextCursor } from '../pagination/cursor.js';
 import { enhanceError, formatStructuredError } from '../errors/codes.js';
+import { formatSearchStats } from '../formatting/searchStats.js';
 
 /** Default result limit for pagination */
 const DEFAULT_LIMIT = 30;
@@ -173,7 +174,7 @@ export function extractSymbols(fileMatches: FileMatch[]): Symbol[] {
 function formatSymbolResults(
   query: string,
   symbols: Symbol[],
-  stats: { matchCount: number; fileCount: number; durationMs: number },
+  stats: { durationMs: number; zoekt: SearchStats | undefined },
   nextCursor?: string
 ): string {
   let output = `## Symbol Search Results: \`${query}\`\n\n`;
@@ -183,7 +184,11 @@ function formatSymbolResults(
     return output;
   }
   
-  output += `Found ${symbols.length} symbols in ${stats.fileCount} files (${stats.durationMs.toFixed(0)}ms)\n\n`;
+  output += `Showing ${symbols.length} symbols (${stats.durationMs.toFixed(0)}ms)\n`;
+  if (stats.zoekt) {
+    output += formatSearchStats(stats.zoekt);
+  }
+  output += '\n';
   
   // Group by repository
   const byRepo = new Map<string, Symbol[]>();
@@ -265,7 +270,6 @@ export function createSearchSymbolsHandler(
       
       const duration = Date.now() - startTime;
       const fileMatches = response.result?.FileMatches ?? [];
-      const zoektStats = response.result?.Stats;
       
       // Extract symbols
       const allSymbols = extractSymbols(fileMatches);
@@ -274,11 +278,7 @@ export function createSearchSymbolsHandler(
       const paginatedSymbols = allSymbols.slice(offset, offset + limit);
       const hasMore = allSymbols.length > offset + limit;
       
-      const stats = {
-        matchCount: zoektStats?.MatchCount ?? allSymbols.length,
-        fileCount: zoektStats?.FileCount ?? fileMatches.length,
-        durationMs: duration,
-      };
+      const stats = { durationMs: duration, zoekt: response.result?.Stats };
       
       logger.info(
         { query: wrappedQuery, duration, symbolCount: paginatedSymbols.length, hasMore },
