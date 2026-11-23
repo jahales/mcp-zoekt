@@ -1,5 +1,6 @@
-# GitHub token - NEVER commit this file
+# GitHub tokens - NEVER commit these files
 config/github-token.txt
+config/ghe-token.txt
 
 # Backup files
 *.bak

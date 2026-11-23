@@ -1,5 +1,6 @@
 # Docker secrets
 docker/config/github-token.txt
+docker/config/ghe-token.txt
 
 # Dependencies
 node_modules/

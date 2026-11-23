@@ -1,6 +1,6 @@
 #!/bin/bash
-# Daily Zoekt index update: mirror + re-index the configured GITHUB_ORGS, then
-# reload the webserver so searches see fresh code.
+# Daily Zoekt index update: mirror + re-index the configured GITHUB_ORGS (and
+# GHE_ORGS on GHE_URL, if set), then reload the webserver so searches see fresh code.
 #
 # Scheduled via a launchd agent (see com.zoekt.index-update.plist.example) rather
 # than cron: launchd runs the job on the next wake if the Mac was asleep at the
@@ -46,17 +46,33 @@ COMPOSE="docker compose -p docker -f docker-compose.prod.yml"
 # the re-index.
 MIRROR_ATTEMPTS=3
 MIRROR_RETRY_DELAY="${MIRROR_RETRY_DELAY:-120}"
+
+# mirror PROFILE SERVICE: run a mirror service, retrying until it succeeds or
+# MIRROR_ATTEMPTS run out.
+mirror() {
+  local attempt=1
+  until $COMPOSE --profile "$1" run --rm "$2"; do
+    if [ "$attempt" -ge "$MIRROR_ATTEMPTS" ]; then
+      return 1
+    fi
+    echo "$2 attempt $attempt failed; retrying in $((attempt * MIRROR_RETRY_DELAY)) s..."
+    sleep $((attempt * MIRROR_RETRY_DELAY))
+    attempt=$((attempt + 1))
+  done
+}
+
 echo "Mirroring repositories..."
-attempt=1
-until $COMPOSE --profile mirror run --rm zoekt-mirror; do
-  if [ "$attempt" -ge "$MIRROR_ATTEMPTS" ]; then
-    echo "ERROR: mirror failed $attempt times (expired token / no network?); skipping re-index so we don't rebuild from a stale checkout." >&2
-    exit 1
-  fi
-  echo "Mirror attempt $attempt failed; retrying in $((attempt * MIRROR_RETRY_DELAY)) s..."
-  sleep $((attempt * MIRROR_RETRY_DELAY))
-  attempt=$((attempt + 1))
-done
+if ! mirror mirror zoekt-mirror; then
+  echo "ERROR: mirror failed $MIRROR_ATTEMPTS times (expired token / no network?); skipping re-index so we don't rebuild from a stale checkout." >&2
+  exit 1
+fi
+
+# A GHE host may only be reachable over VPN, which is often down overnight. Its
+# failure must not cost github.com its re-index; GHE repos re-index from their last fetch.
+echo "Mirroring GitHub Enterprise repositories..."
+if ! mirror mirror-ghe zoekt-mirror-ghe; then
+  echo "WARN: GitHub Enterprise mirror failed $MIRROR_ATTEMPTS times (VPN down / expired token?); indexing its last fetch." >&2
+fi
 
 echo "Re-indexing repositories..."
 $COMPOSE --profile index run --rm zoekt-indexer
