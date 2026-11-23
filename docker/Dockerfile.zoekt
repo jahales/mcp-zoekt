@@ -6,15 +6,18 @@ FROM golang:1.25-alpine AS builder
 RUN apk add --no-cache ca-certificates git
 
 ENV CGO_ENABLED=0
-# We build zoekt's HEAD (cloned --depth 1 below), so its go.mod can require a
-# newer Go than this base image. GOTOOLCHAIN=auto lets Go fetch the required
-# toolchain on demand instead of failing the build (official golang images
-# default to GOTOOLCHAIN=local). Keeps this from breaking on every upstream bump.
+# zoekt's go.mod can require a newer Go than this base image. GOTOOLCHAIN=auto
+# lets Go fetch the required toolchain on demand instead of failing the build
+# (official golang images default to GOTOOLCHAIN=local).
 ENV GOTOOLCHAIN=auto
 WORKDIR /go/src/github.com/sourcegraph/zoekt
 
-# Clone zoekt source
-RUN git clone --depth 1 https://github.com/sourcegraph/zoekt.git .
+# Pinned so a rebuild reproduces the image. Bump deliberately, to a commit whose
+# upstream CI passed.
+ARG ZOEKT_REF=b55ce727df8cfbed76b8a1420445fd0cf93f3256
+RUN git init -q . && \
+    git fetch -q --depth 1 https://github.com/sourcegraph/zoekt.git "$ZOEKT_REF" && \
+    git checkout -q FETCH_HEAD
 
 # Build zoekt binaries (including mirror for GitHub)
 RUN go install ./cmd/zoekt-webserver ./cmd/zoekt-git-index ./cmd/zoekt-index ./cmd/zoekt ./cmd/zoekt-mirror-github
@@ -32,7 +35,9 @@ RUN apk add --no-cache \
     libseccomp-dev
 
 WORKDIR /build
-RUN git clone --depth 1 https://github.com/universal-ctags/ctags.git && \
+# The version upstream zoekt tests with.
+ARG CTAGS_REF=v6.2.1
+RUN git clone -q --depth 1 --branch "$CTAGS_REF" https://github.com/universal-ctags/ctags.git && \
     cd ctags && \
     ./autogen.sh && \
     ./configure --prefix=/usr --enable-json --enable-seccomp && \
