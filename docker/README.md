@@ -9,6 +9,7 @@ This directory contains:
 - `.env` (optional) - Environment variables such as `COMPOSE_PROFILES`, `WORKSPACE_ROOT`, `GITHUB_ORGS`, `SYNC_INTERVAL`
 - `.env.example` - Copy/paste template for `.env`
 - `config/github-token.txt` - Your GitHub Personal Access Token (not committed; required only for GitHub mode)
+- `config/ghe-token.txt` - Token for a GitHub Enterprise host (not committed; only if you set `GHE_URL`)
 
 ## Quick Start
 
@@ -131,9 +132,28 @@ advanced multi-org scheduling/configuration, use the production workflow documen
 
 ### Scheduled index updates (macOS: launchd)
 
-`update-index.sh` re-mirrors and re-indexes the configured `GITHUB_ORGS`, then reloads
-the webserver. Schedule it with a **launchd agent** rather than cron — launchd runs the
-job on the next wake if the Mac was asleep at the scheduled time, whereas cron skips it.
+`update-index.sh` re-mirrors and re-indexes the configured `GITHUB_ORGS` (and `GHE_ORGS`,
+below), then reloads the webserver. Each repo is indexed on `HEAD` plus whichever of `main`,
+`dev`, `develop`, `stage` and `staging` it has.
+
+A mirror deletes a clone only when the API shows its repo archived or moved (renamed or
+transferred), via `scripts/prune-mirror.sh`. A repo that merely drops out of the org listing
+keeps its clone, because GitHub answers 404 both for a deleted repo and for one the token can
+no longer see, and a narrower token must not cost clones. The log names each such repo
+("not visible to the token"); if it was deleted, delete its clone by hand.
+
+The indexer then deletes the shards of any repo in a configured org whose clone is gone. An
+org with no clones at all keeps its shards, so a mirror that never populated can't empty the
+index, and orgs no longer configured are left alone. The indexer also removes `*.tmp` shard
+files more than an hour old, which interrupted runs leave behind. Org names match their clone
+directories case-insensitively.
+
+Each mirror attempt is stopped after `MIRROR_TIMEOUT` seconds (default 3 hours;
+`GHE_MIRROR_TIMEOUT` overrides it for the GHE mirror), so a host that accepts connections
+but never answers can't hold the run.
+
+Schedule it with a **launchd agent** rather than cron — launchd runs the job on the next
+wake if the Mac was asleep at the scheduled time, whereas cron skips it.
 
 Copy `com.zoekt.index-update.plist.example` to
 `~/Library/LaunchAgents/com.zoekt.index-update.plist`, replace the path placeholders, then:
@@ -146,6 +166,31 @@ launchctl kickstart -k gui/$(id -u)/com.zoekt.index-update   # run once now (opt
 
 Requires Docker Desktop running; the script waits up to 5 min for the daemon and holds a
 lock so overlapping runs are skipped. Output goes to `~/zoekt-update.log`.
+
+### GitHub Enterprise orgs
+
+`docker-compose.prod.yml` can also mirror orgs on a GitHub Enterprise host, through its own
+`zoekt-mirror-ghe` service. Put a token from that host with `repo` scope in
+`config/ghe-token.txt` (gitignored) and set in `.env`:
+
+| Variable | Description |
+|----------|-------------|
+| `GHE_URL` | Host root, e.g. `https://github.example.com`. Unset skips the GHE mirror. |
+| `GHE_ORGS` | Comma-separated orgs on that host |
+| `GHE_EXCLUDE` | Regexp of repo names not to mirror, e.g. vendored copies of upstream projects |
+| `GHE_NAME` | Regexp of the only repo names to mirror; useful for a first small test |
+
+Repos land in `/data/repos/<host>/<org>/` and are indexed as `<host>/<org>/<repo>`, apart
+from any github.com org of the same name.
+
+A GHE mirror failure only warns. `update-index.sh` retries it like the github.com mirror,
+then re-indexes everything anyway, GHE repos from their last successful fetch. So a night
+when the host is unreachable (say, it needs a VPN that is down) still refreshes github.com.
+A github.com mirror failure still skips the whole re-index.
+
+`GHE_EXCLUDE` and `GHE_NAME` only decide what gets cloned. Repos that a new `GHE_EXCLUDE`
+matches are not removed if already mirrored: delete their clones from
+`/data/repos/<host>/<org>/` by hand, and the next run drops their shards.
 
 ## Environment Variables
 
